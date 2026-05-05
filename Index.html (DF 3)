@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+  <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+  <style>
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    
+    .table-container {
+      overflow-x: auto; 
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .template-table {
+      border-collapse: separate !important;
+      border-spacing: 0;
+      width: 100%;
+      white-space: nowrap; 
+    }
+    
+    .template-table th, .template-table td {
+      border-bottom: 1px solid #e2e8f0;
+      border-right: 1px solid #e2e8f0;
+      padding: 10px 14px;
+    }
+    
+    .template-table thead tr.main-header th, .template-table thead tr.standard-header th {
+      background-color: #1e3a8a !important; 
+      color: white;
+      font-weight: 800;
+      text-transform: uppercase;
+      font-size: 0.85rem;
+      border-top: 1px solid #1e3a8a;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 12;
+    }
+    
+    .template-table thead tr.sub-header th {
+      background-color: #f1f5f9 !important;
+      color: #0f172a;
+      font-weight: 700;
+      font-size: 0.80rem;
+      position: sticky;
+      top: 38px; 
+      z-index: 12;
+    }
+
+    .template-table tbody tr:nth-child(even) { background-color: #f8fafc; }
+    .template-table tbody tr:nth-child(odd) { background-color: #ffffff; }
+    .template-table tbody tr:hover { background-color: #eff6ff; }
+
+    .col-sticky-1 { position: sticky !important; left: 0; z-index: 10; min-width: 90px; }
+    .col-sticky-2 { position: sticky !important; left: 110px; z-index: 10; min-width: 250px;} 
+    .template-table thead .col-sticky-1, .template-table thead .col-sticky-2 { z-index: 13; } 
+    
+    .template-table tbody tr:nth-child(even) .col-sticky-1, .template-table tbody tr:nth-child(even) .col-sticky-2 { background-color: #f8fafc; }
+    .template-table tbody tr:nth-child(odd) .col-sticky-1, .template-table tbody tr:nth-child(odd) .col-sticky-2 { background-color: #ffffff; }
+    .template-table tbody tr:hover .col-sticky-1, .template-table tbody tr:hover .col-sticky-2 { background-color: #eff6ff; }
+
+    .badge-new { background-color: #3b82f6; color: white; padding: 3px 10px; border-radius: 12px; font-size: 0.70rem; font-weight: bold;}
+    .badge-active { background-color: #10b981; color: white; padding: 3px 10px; border-radius: 12px; font-size: 0.70rem; font-weight: bold;}
+    .status-live { color: #16a34a; font-weight: 800; text-transform: uppercase; font-size: 0.75rem;}
+    .status-no { color: #dc2626; font-weight: 800; text-transform: uppercase; font-size: 0.75rem;}
+    
+    .select2-container .select2-selection--multiple { min-height: 26px; font-size: 0.70rem; border-color: #d1d5db; border-radius: 4px; padding: 0px 2px;}
+    .select2-search__field { margin-top: 2px !important; }
+    
+    table.dataTable thead th.sorting:after, table.dataTable thead th.sorting_asc:after, table.dataTable thead th.sorting_desc:after { content: "" !important; }
+    table.dataTable thead th.sorting:before, table.dataTable thead th.sorting_asc:before, table.dataTable thead th.sorting_desc:before { content: "" !important; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans">
+
+  <div class="w-full bg-blue-900 text-white p-4 shadow-md flex justify-between items-center">
+    <h1 class="text-2xl font-bold tracking-wider">DECATHLON | NWS Dashboard</h1>
+    <div id="loader" class="animate-pulse font-semibold text-blue-200">Processing Data...</div>
+  </div>
+
+  <div class="bg-white border-b flex space-x-4 px-6 pt-4 sticky top-0 z-20 shadow-sm">
+    <button onclick="switchTab('master')" class="tab-btn px-4 py-2 border-b-4 border-blue-600 text-blue-600 font-bold" id="btn-master">Master Database</button>
+    <button onclick="switchTab('perf')" class="tab-btn px-4 py-2 border-b-4 border-transparent text-gray-500 hover:text-blue-600 transition-colors" id="btn-perf">NWS Performance</button>
+    <button onclick="switchTab('offer')" class="tab-btn px-4 py-2 border-b-4 border-transparent text-gray-500 hover:text-blue-600 transition-colors" id="btn-offer">Live %</button>
+  </div>
+
+  <div class="p-6">
+    <div class="bg-white p-3 rounded-lg border border-gray-200 mb-4 shadow-sm">
+      <div class="flex justify-between items-center mb-2">
+        <h4 class="text-sm font-bold text-gray-700 uppercase">Global Faceted Filters</h4>
+        <button id="btn-global-reset" class="bg-red-50 border border-red-200 text-red-700 px-3 py-1 rounded text-xs font-semibold hover:bg-red-100 transition-colors">🔄 Reset All</button>
+      </div>
+      <div class="flex flex-wrap gap-3 items-end">
+        <div class="w-40"><label class="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Sector</label><select id="g-flt-sec" class="g-flt w-full" multiple></select></div>
+        <div class="w-40"><label class="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Department</label><select id="g-flt-dep" class="g-flt w-full" multiple></select></div>
+        <div class="w-40"><label class="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">SubDept</label><select id="g-flt-sub" class="g-flt w-full" multiple></select></div>
+        <div class="w-40"><label class="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Merch Cat</label><select id="g-flt-p1" class="g-flt w-full" multiple></select></div>
+        <div class="w-32"><label class="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Code ABC</label><select id="g-flt-abc" class="g-flt w-full" multiple></select></div>
+        <div class="w-40"><label class="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">Merch Cat (P2)</label><select id="g-flt-p2" class="g-flt w-full" multiple></select></div>
+        <div class="w-40"><label class="text-[10px] font-bold text-gray-500 uppercase tracking-tighter">DSM</label><select id="g-flt-dsm" class="g-flt w-full" multiple></select></div>
+      </div>
+    </div>
+
+    <div id="master" class="tab-content active bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+      <div class="flex justify-between items-center mb-6">
+        <div class="bg-blue-50 border border-blue-200 px-6 py-3 rounded-lg shadow-sm">
+          <p class="text-xs text-blue-600 font-bold uppercase tracking-wider">Total Models Tracked</p>
+          <h3 class="text-3xl font-black text-blue-900" id="total-models">--</h3>
+        </div>
+        <div class="space-x-3 flex">
+          <button id="btn-filter-new" class="bg-gray-100 border border-gray-300 text-gray-700 px-4 py-2 rounded text-sm font-semibold hover:bg-blue-100 transition-colors">🎯 Filter NEW</button>
+          <button onclick="exportSheet('masterTable', 'Master_Database', this)" class="bg-green-600 border border-green-700 text-white px-4 py-2 rounded text-sm font-bold shadow hover:bg-green-700 transition-colors">⬇ Export to Sheet</button>
+        </div>
+      </div>
+      <div class="table-container">
+        <table id="masterTable" class="template-table display text-sm">
+          <thead>
+            <tr class="standard-header">
+              <th class="col-sticky-1">Model Code</th><th class="col-sticky-2">Model Name</th>
+              <th>Tag</th><th>MP Price</th><th>NOP</th><th>Gender</th><th>Sector</th><th>Dept</th>
+              <th>SubDept</th><th>DSM</th><th>Code(ABC)</th><th>Color</th><th>Sportpractice</th><th>Suggested Name</th>
+            </tr>
+          </thead>
+          <tbody id="masterBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="perf" class="tab-content bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+      <div class="flex justify-between items-center mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+        <div class="flex space-x-6 items-center">
+          <div><label class="text-xs font-bold text-gray-500 uppercase">Metric</label><br><select id="perf-metric" class="border border-gray-300 rounded px-3 py-1 text-sm font-bold bg-white"><option value="val">Sales Value (Y)</option><option value="qty">Sales Quantity (Y)</option></select></div>
+          <div class="border-l border-gray-300 h-8"></div>
+          <div>
+            <label class="text-xs font-bold text-gray-500 uppercase">Year</label><br>
+            <select id="perf-year" class="border border-gray-300 rounded px-2 py-1 text-sm font-bold bg-white w-20">
+              <option value="2026">2026</option><option value="2025">2025</option>
+            </select>
+          </div>
+          <div><label class="text-xs font-bold text-gray-500 uppercase">Month (1-12)</label><br><select id="perf-month" class="border border-gray-300 rounded px-2 py-1 text-sm font-bold bg-white w-24"><option value="">-- All --</option><script>for(let i=1;i<=12;i++) document.write(`<option value="${i}">Month ${i}</option>`);</script></select></div>
+          <div><label class="text-xs font-bold text-gray-500 uppercase">Week (1-52)</label><br><select id="perf-week" class="border border-gray-300 rounded px-2 py-1 text-sm font-bold bg-white w-24"><option value="">-- All --</option><script>for(let i=1;i<=52;i++) document.write(`<option value="${i}">Week ${i}</option>`);</script></select></div>
+          <button id="btn-perf-reset" class="mt-4 bg-red-100 text-red-700 px-3 py-1 rounded text-sm font-bold hover:bg-red-200 transition">Reset Dates</button>
+        </div>
+        <button onclick="exportSheet('perfTable', 'NWS_Performance', this)" class="bg-green-600 border border-green-700 text-white px-4 py-2 rounded text-sm font-bold shadow hover:bg-green-700 transition-colors">⬇ Export to Sheet</button>
+      </div>
+
+      <div class="grid grid-cols-3 gap-6 mb-6">
+        <div class="bg-blue-50 border border-blue-200 p-4 rounded-lg shadow-sm"><p class="text-xs font-bold text-blue-600 uppercase">B2B (Wholesale) <span class="time-label">YTD</span></p><h3 class="text-3xl font-black text-blue-900 mt-1" id="card-b2b">--</h3><p class="text-sm font-semibold mt-1" id="grow-b2b">--</p></div>
+        <div class="bg-green-50 border border-green-200 p-4 rounded-lg shadow-sm"><p class="text-xs font-bold text-green-600 uppercase">Quick Commerce <span class="time-label">YTD</span></p><h3 class="text-3xl font-black text-green-900 mt-1" id="card-qc">--</h3><p class="text-sm font-semibold mt-1" id="grow-qc">--</p></div>
+        <div class="bg-purple-50 border border-purple-200 p-4 rounded-lg shadow-sm"><p class="text-xs font-bold text-purple-600 uppercase">Marketplace <span class="time-label">YTD</span></p><h3 class="text-3xl font-black text-purple-900 mt-1" id="card-mkpl">--</h3><p class="text-sm font-semibold mt-1" id="grow-mkpl">--</p></div>
+      </div>
+
+      <div class="table-container">
+        <table id="perfTable" class="template-table display w-full text-sm text-center">
+          <thead>
+            <tr class="standard-header">
+              <th class="col-sticky-1">Model Code</th><th class="col-sticky-2">Model Name</th>
+              <th>B2B Sales</th><th>B2B Grw%</th><th>QC Sales</th><th>QC Grw%</th><th>MKPL Sales</th><th>MKPL Grw%</th>
+            </tr>
+          </thead>
+          <tbody id="perfBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="offer" class="tab-content bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+      <div class="flex justify-between items-center mb-6">
+        <div class="grid grid-cols-4 gap-4 flex-grow mr-6">
+          <div class="bg-purple-50 border border-purple-200 p-4 rounded-lg shadow-sm text-center"><p class="text-[10px] font-bold text-purple-600 uppercase">Live on Myntra</p><h3 class="text-2xl font-black text-purple-900 mt-1" id="kpi-m-myn">--%</h3></div>
+          <div class="bg-purple-50 border border-purple-200 p-4 rounded-lg shadow-sm text-center"><p class="text-[10px] font-bold text-purple-600 uppercase">Live Any 1 MKPL</p><h3 class="text-2xl font-black text-purple-900 mt-1" id="kpi-m-any">--%</h3></div>
+          <div class="bg-green-50 border border-green-200 p-4 rounded-lg shadow-sm text-center"><p class="text-[10px] font-bold text-green-600 uppercase">Live Blinkit/Zepto</p><h3 class="text-2xl font-black text-green-900 mt-1" id="kpi-q-bz">--%</h3></div>
+          <div class="bg-green-50 border border-green-200 p-4 rounded-lg shadow-sm text-center"><p class="text-[10px] font-bold text-green-600 uppercase">Live Any 1 QC</p><h3 class="text-2xl font-black text-green-900 mt-1" id="kpi-q-any">--%</h3></div>
+        </div>
+        <button onclick="exportSheet('offerTable', 'Live_Percentage', this)" class="bg-green-600 border border-green-700 text-white px-4 py-2 rounded text-sm font-bold shadow hover:bg-green-700 transition-colors">⬇ Export to Sheet</button>
+      </div>
+
+      <div class="table-container">
+        <table id="offerTable" class="template-table display w-full text-sm text-center">
+          <thead>
+            <tr class="main-header">
+              <th colspan="2" class="col-sticky-1" style="background-color: #0f172a !important;">Basic Information</th>
+              <th colspan="3" style="background-color: #6b21a8 !important;">Marketplace</th>
+              <th colspan="4" style="background-color: #166534 !important;">Q.C. Platforms</th>
+            </tr>
+            <tr class="sub-header">
+              <th class="col-sticky-1">Model Code</th><th class="col-sticky-2">Model Name</th>
+              <th>Myntra</th><th>Ajio</th><th>TataCliq</th>
+              <th>Blinkit</th><th>Zepto</th><th>Swiggy</th><th>Considered for QC</th>
+            </tr>
+          </thead>
+          <tbody id="offerBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let masterDataTable, perfDataTable, offerDataTable;
+    let globalMasterData = [], globalPerfData = [];
+    let gFilters = { sec:[], dep:[], sub:[], p1:[], abc:[], p2:[], dsm:[] };
+    let isRebuildingGlobal = false;
+    let isNewFiltered = false;
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => { el.classList.remove('border-blue-600', 'text-blue-600', 'font-bold'); el.classList.add('border-transparent', 'text-gray-500');});
+      document.getElementById(tabId).classList.add('active');
+      document.getElementById('btn-' + tabId).classList.add('border-blue-600', 'text-blue-600', 'font-bold');
+    }
+
+    function formatCb(state) {
+      if (!state.id) return state.text;
+      let isChecked = state.selected ? "checked" : "";
+      return $(`<span class="text-xs"><input type="checkbox" class="mr-1" style="cursor:pointer;" ${isChecked}/> ${state.text}</span>`);
+    }
+
+    const fmt = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
+    function calcGrowth(v26, v25) {
+      if(v25 === 0) return v26 > 0 ? `<span class="text-green-600 font-bold">+100%</span>` : `<span class="text-gray-500 font-bold">0%</span>`;
+      let g = ((v26 - v25) / v25) * 100;
+      return g >= 0 ? `<span class="text-green-600 font-bold">+${g.toFixed(1)}%</span>` : `<span class="text-red-600 font-bold">${g.toFixed(1)}%</span>`;
+    }
+
+    window.onload = function() { google.script.run.withSuccessHandler(renderDashboard).getDashboardData(); };
+
+    function renderDashboard(data) {
+      document.getElementById('loader').innerText = "Data Synced";
+      globalMasterData = data.masterData;
+      globalPerfData = data.performanceData;
+
+      // Init Tables without DataTables Scroll
+      masterDataTable = $('#masterTable').DataTable({ pageLength: 15, scrollX: false, dom: 'rtip' });
+      perfDataTable = $('#perfTable').DataTable({ pageLength: 15, scrollX: false, dom: 'rtip' });
+      offerDataTable = $('#offerTable').DataTable({ pageLength: 15, scrollX: false, dom: 'rtip' });
+
+      buildGlobalDropdowns();
+      applyAllViews(); 
+    }
+
+    function buildGlobalDropdowns() {
+      const keys = ['sec', 'dep', 'sub', 'p1', 'abc', 'p2', 'dsm'];
+      
+      const applyCascading = () => {
+        if(isRebuildingGlobal) return;
+        isRebuildingGlobal = true;
+
+        let fData = globalMasterData.filter(m => {
+          if(gFilters.sec.length && !gFilters.sec.includes(m.sector)) return false;
+          if(gFilters.dep.length && !gFilters.dep.includes(m.dept)) return false;
+          if(gFilters.sub.length && !gFilters.sub.includes(m.subdept)) return false;
+          if(gFilters.p1.length && !gFilters.p1.includes(m.prod1)) return false;
+          if(gFilters.abc.length && !gFilters.abc.includes(m.codeAbc)) return false;
+          if(gFilters.p2.length && !gFilters.p2.includes(m.prod2)) return false;
+          if(gFilters.dsm.length && !gFilters.dsm.includes(m.dsm)) return false;
+          if(isNewFiltered && !m.isNew) return false;
+          return true;
+        });
+
+        keys.forEach(k => {
+          if(gFilters[k].length === 0) { 
+            let sel = $('#g-flt-' + k);
+            sel.empty();
+            let uniqueVals = [...new Set(fData.map(m => {
+              if(k==='sec') return m.sector; if(k==='dep') return m.dept; if(k==='sub') return m.subdept;
+              if(k==='p1') return m.prod1; if(k==='abc') return m.codeAbc; if(k==='p2') return m.prod2; return m.dsm;
+            }))].filter(v => v && v!=='-').sort();
+            uniqueVals.forEach(v => sel.append(new Option(v,v,false,false)));
+            sel.trigger('change.select2');
+          }
+        });
+
+        isRebuildingGlobal = false;
+        applyAllViews();
+      };
+
+      const initFlt = (id, key, propMap) => {
+        let sel = $('#'+id);
+        let u = [...new Set(globalMasterData.map(m => m[propMap]))].filter(v=>v && v!=='-').sort();
+        u.forEach(v => sel.append(new Option(v,v,false,false)));
+        sel.select2({placeholder:"All", allowClear:true, closeOnSelect:false, templateResult:formatCb});
+        sel.on('change', function() { gFilters[key] = $(this).val() || []; applyCascading(); });
+      };
+
+      initFlt('g-flt-sec','sec','sector'); initFlt('g-flt-dep','dep','dept'); initFlt('g-flt-sub','sub','subdept');
+      initFlt('g-flt-p1','p1','prod1'); initFlt('g-flt-abc','abc','codeAbc'); initFlt('g-flt-p2','p2','prod2'); initFlt('g-flt-dsm','dsm','dsm');
+
+      $('#btn-global-reset').on('click', function() {
+        $('.g-flt').val(null).trigger('change.select2');
+        gFilters = {sec:[], dep:[], sub:[], p1:[], abc:[], p2:[], dsm:[]};
+        if(isNewFiltered) { isNewFiltered=false; $('#btn-filter-new').removeClass('bg-blue-600 text-white').addClass('bg-gray-100 text-gray-700').text('🎯 Filter NEW'); }
+        applyCascading();
+      });
+
+      $('#btn-filter-new').on('click', function() {
+        isNewFiltered = !isNewFiltered;
+        if(isNewFiltered) $(this).removeClass('bg-gray-100 text-gray-700').addClass('bg-blue-600 text-white').text('🎯 Clear NEW Filter');
+        else $(this).removeClass('bg-blue-600 text-white').addClass('bg-gray-100 text-gray-700').text('🎯 Filter NEW');
+        applyCascading();
+      });
+    }
+
+    function applyAllViews() {
+      const checkFlt = (m) => {
+        if(gFilters.sec.length && !gFilters.sec.includes(m.sector)) return false;
+        if(gFilters.dep.length && !gFilters.dep.includes(m.dept)) return false;
+        if(gFilters.sub.length && !gFilters.sub.includes(m.subdept)) return false;
+        if(gFilters.p1.length && !gFilters.p1.includes(m.prod1)) return false;
+        if(gFilters.abc.length && !gFilters.abc.includes(m.codeAbc)) return false;
+        if(gFilters.p2.length && !gFilters.p2.includes(m.prod2)) return false;
+        if(gFilters.dsm.length && !gFilters.dsm.includes(m.dsm)) return false;
+        return true;
+      };
+
+      // 1. Master Tab 
+      let fMaster = globalMasterData.filter(m => checkFlt(m) && (!isNewFiltered || m.isNew));
+      document.getElementById('total-models').innerText = fMaster.length;
+      masterDataTable.clear();
+      fMaster.forEach(m => {
+        let tag = m.isNew ? '<span class="badge-new">NEW</span>' : '<span class="badge-active">ACTIVE</span>';
+        masterDataTable.row.add([
+          `<div class="font-bold text-gray-900 col-sticky-1">${m.code||'-'}</div>`, `<div class="font-medium text-left col-sticky-2" style="white-space: normal;">${m.mName||'-'}</div>`,
+          tag, m.mpPrice ? '₹'+m.mpPrice : '-', m.nop||'-', m.finalGender||'-', m.sector||'-', m.dept||'-',
+          m.subdept||'-', m.dsm||'-', m.codeAbc||'-', `<span class="capitalize">${m.color||'-'}</span>`,
+          `<div style="max-width:160px; white-space:normal;">${m.sportpractice||'-'}</div>`, m.onlineSuggestedName||''
+        ]);
+      });
+      masterDataTable.draw();
+
+      // 2. Perf Tab Update
+      let metric = $('#perf-metric').val(); let month = $('#perf-month').val(); let week = $('#perf-week').val();
+      let year = $('#perf-year').val();
+      let isVal = (metric === 'val');
+      let showGrowth = (year === '2026');
+      
+      let fPerf = globalPerfData.filter(p => checkFlt(p)); 
+      let totB2B=0, totB2B_LY=0, totQC=0, totQC_LY=0, totMKPL=0, totMKPL_LY=0;
+      perfDataTable.clear();
+      const getZero = () => ({ mkpl26:0, mkpl25:0, qc26:0, qc25:0, b2b26:0, b2b25:0 });
+
+      // Dynamically toggle column visibility based on Year selected
+      perfDataTable.column(3).visible(showGrowth);
+      perfDataTable.column(5).visible(showGrowth);
+      perfDataTable.column(7).visible(showGrowth);
+
+      fPerf.forEach(p => {
+        let cur = getZero();
+        if(month !== "" && p.months[month]) cur = p.months[month][metric] || getZero();
+        else if(week !== "" && p.weeks[week]) cur = p.weeks[week][metric] || getZero();
+        else if(month === "" && week === "") {
+           cur = (year === '2025') ? (p.fy25[metric] || getZero()) : (p.ytd[metric] || getZero());
+        }
+        
+        let b2bCur = year === '2026' ? cur.b2b26 : cur.b2b25;
+        let qcCur = year === '2026' ? cur.qc26 : cur.qc25;
+        let mkplCur = year === '2026' ? cur.mkpl26 : cur.mkpl25;
+
+        totB2B += b2bCur; totB2B_LY += cur.b2b25; 
+        totQC += qcCur; totQC_LY += cur.qc25; 
+        totMKPL += mkplCur; totMKPL_LY += cur.mkpl25;
+
+        if (b2bCur === 0 && qcCur === 0 && mkplCur === 0 && cur.b2b25 === 0 && cur.qc25 === 0 && cur.mkpl25 === 0) return; 
+
+        let pre = isVal ? '₹' : '';
+        perfDataTable.row.add([
+          `<div class="font-bold text-gray-900 col-sticky-1">${p.code}</div>`, `<div class="font-medium text-left col-sticky-2" style="white-space: normal;">${p.name}</div>`,
+          `<span class="font-bold text-blue-700">${pre + fmt.format(b2bCur)}</span>`, showGrowth ? calcGrowth(b2bCur, cur.b2b25) : '-',
+          `<span class="font-bold text-green-700">${pre + fmt.format(qcCur)}</span>`, showGrowth ? calcGrowth(qcCur, cur.qc25) : '-',
+          `<span class="font-bold text-purple-700">${pre + fmt.format(mkplCur)}</span>`, showGrowth ? calcGrowth(mkplCur, cur.mkpl25) : '-'
+        ]);
+      });
+      perfDataTable.draw();
+      
+      let preCard = isVal ? '₹' : '';
+      document.getElementById('card-b2b').innerText = preCard + fmt.format(totB2B); document.getElementById('grow-b2b').innerHTML = showGrowth ? "Growth LY: " + calcGrowth(totB2B, totB2B_LY) : "&nbsp;";
+      document.getElementById('card-qc').innerText = preCard + fmt.format(totQC); document.getElementById('grow-qc').innerHTML = showGrowth ? "Growth LY: " + calcGrowth(totQC, totQC_LY) : "&nbsp;";
+      document.getElementById('card-mkpl').innerText = preCard + fmt.format(totMKPL); document.getElementById('grow-mkpl').innerHTML = showGrowth ? "Growth LY: " + calcGrowth(totMKPL, totMKPL_LY) : "&nbsp;";
+
+      // 3. Offer Live Tab Update
+      offerDataTable.clear();
+      let m_myn=0, m_any=0, q_bz=0, q_any=0, q_denom=0;
+
+      fMaster.forEach(m => {
+        let isM = (m.myntraStatus === 'Live'), isA = (m.ajioStatus === 'Live'), isT = (m.tataCliqStatus === 'Live');
+        let isB = (m.blinkit === 'Y'), isZ = (m.zepto === 'Y'), isS = (m.swiggy === 'Y');
+        
+        if(isM) m_myn++;
+        if(isM || isA || isT) m_any++;
+        
+        let isQcLiveAny = (isB || isZ || isS);
+        if(m.isQcTarget || isQcLiveAny) {
+           q_denom++;
+           if(isB || isZ) q_bz++;
+           if(isQcLiveAny) q_any++;
+        }
+
+        offerDataTable.row.add([
+          `<div class="font-bold text-gray-900 col-sticky-1">${m.code||'-'}</div>`, `<div class="font-medium text-left col-sticky-2" style="white-space: normal;">${m.mName||'-'}</div>`,
+          `<span class="${isM?'status-live':'status-no'}">${isM?'Live':'Not Live'}</span>`,
+          `<span class="${isA?'status-live':'status-no'}">${isA?'Live':'Not Live'}</span>`,
+          `<span class="${isT?'status-live':'status-no'}">${isT?'Live':'Not Live'}</span>`,
+          `<span class="${isB?'status-live':'status-no'}">${isB?'Live':'Not Live'}</span>`,
+          `<span class="${isZ?'status-live':'status-no'}">${isZ?'Live':'Not Live'}</span>`,
+          `<span class="${isS?'status-live':'status-no'}">${isS?'Live':'Not Live'}</span>`,
+          `<input type="checkbox" onchange="toggleQc('${m.code}', this.checked)" ${m.isQcTarget ? 'checked' : ''} class="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer">`
+        ]);
+      });
+      offerDataTable.draw();
+
+      let mTotal = fMaster.length || 1; 
+      let qTotal = q_denom || 1;
+      document.getElementById('kpi-m-myn').innerText = Math.round((m_myn/mTotal)*100) + '%';
+      document.getElementById('kpi-m-any').innerText = Math.round((m_any/mTotal)*100) + '%';
+      document.getElementById('kpi-q-bz').innerText = Math.round((q_bz/qTotal)*100) + '%';
+      document.getElementById('kpi-q-any').innerText = Math.round((q_any/qTotal)*100) + '%';
+    }
+
+    // Perf UI Listeners
+    $('#perf-metric, #perf-year, #perf-month, #perf-week').on('change', function() {
+      if(this.id === 'perf-month' && $(this).val() !== "") $('#perf-week').val("").prop('disabled', true).addClass('bg-gray-100');
+      else if(this.id === 'perf-month') $('#perf-week').prop('disabled', false).removeClass('bg-gray-100');
+      
+      if(this.id === 'perf-week' && $(this).val() !== "") $('#perf-month').val("").prop('disabled', true).addClass('bg-gray-100');
+      else if(this.id === 'perf-week') $('#perf-month').prop('disabled', false).removeClass('bg-gray-100');
+      
+      let lbl = $('#perf-year').val() === '2026' ? "YTD" : "Full Year";
+      if($('#perf-month').val() !== "") lbl = "Month " + $('#perf-month').val();
+      if($('#perf-week').val() !== "") lbl = "Week " + $('#perf-week').val();
+      document.querySelectorAll('.time-label').forEach(el => el.innerText = lbl);
+      
+      applyAllViews();
+    });
+
+    $('#btn-perf-reset').on('click', function() {
+      $('#perf-year').val('2026');
+      $('#perf-month').val("").prop('disabled', false).removeClass('bg-gray-100');
+      $('#perf-week').val("").prop('disabled', false).removeClass('bg-gray-100');
+      $('#perf-metric').val('val');
+      document.querySelectorAll('.time-label').forEach(el => el.innerText = "YTD");
+      applyAllViews();
+    });
+
+    function toggleQc(code, checked) {
+      let m = globalMasterData.find(x => x.code === code);
+      if(m) m.isQcTarget = checked;
+      google.script.run.toggleQcTargetInSheet(code, checked);
+      applyAllViews(); 
+    }
+
+    function exportSheet(tableId, title, btn) {
+      const orig = btn.innerText;
+      btn.innerText = "⏳ Exporting..."; btn.disabled = true;
+
+      let data = [];
+      let headerRow = [];
+      
+      if(tableId === 'offerTable') {
+        headerRow = ["Model Code","Model Name","Myntra","Ajio","TataCliq","Blinkit","Zepto","Swiggy","Considered QC"];
+      } else {
+        // Only extract visible headers (Ignores hidden Growth columns for 2025)
+        $('#' + tableId + ' thead tr:last th:visible').each(function() { headerRow.push($(this).text().trim()); });
+      }
+      data.push(headerRow);
+
+      let dt = (tableId === 'masterTable') ? masterDataTable : (tableId === 'perfTable' ? perfDataTable : offerDataTable);
+      dt.rows({search: 'applied'}).every(function() {
+        let rowData = [];
+        // Only extract visible cells
+        $(this.node()).find('td:visible').each(function() {
+          let cb = $(this).find('input[type="checkbox"]');
+          if(cb.length) rowData.push(cb.prop('checked') ? 'TRUE' : 'FALSE');
+          else rowData.push($(this).text().trim());
+        });
+        data.push(rowData);
+      });
+
+      google.script.run.withSuccessHandler(function(url) {
+        btn.innerText = orig; btn.disabled = false;
+        window.open(url, '_blank');
+      }).createExportSheet(data, title);
+    }
+  </script>
+</body>
+</html>
