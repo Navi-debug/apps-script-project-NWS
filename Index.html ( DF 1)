@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+  <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+  <style>
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    
+    table.dataTable.stripe tbody tr.odd { background-color: #f8fafc; }
+    table.dataTable.hover tbody tr:hover { background-color: #eff6ff; }
+    table.dataTable thead th { background-color: #e5e7eb; padding: 12px 10px; border-bottom: 2px solid #cbd5e1; font-weight: 700; color: #374151;}
+    table.dataTable tbody td { padding: 10px; border-bottom: 1px solid #f1f5f9; color: #475569; }
+    
+    /* Sticky Columns ONLY for Master Table */
+    #masterTable th:nth-child(1), #masterTable td:nth-child(1) { position: sticky !important; left: 0; background-color: inherit; z-index: 5; border-right: 1px solid #cbd5e1; min-width: 100px; }
+    #masterTable th:nth-child(2), #masterTable td:nth-child(2) { position: sticky !important; left: 100px; background-color: inherit; z-index: 5; border-right: 2px solid #94a3b8; min-width: 250px;}
+    #masterTable thead th:nth-child(1), #masterTable thead th:nth-child(2) { z-index: 6; background-color: #e5e7eb !important; }
+    table.dataTable.stripe tbody tr.odd td:nth-child(1), table.dataTable.stripe tbody tr.odd td:nth-child(2) { background-color: #f8fafc !important; }
+    table.dataTable.stripe tbody tr.even td:nth-child(1), table.dataTable.stripe tbody tr.even td:nth-child(2) { background-color: #ffffff !important; }
+    table.dataTable.hover tbody tr:hover td:nth-child(1), table.dataTable.hover tbody tr:hover td:nth-child(2) { background-color: #eff6ff !important; }
+
+    .badge-new { background-color: #3b82f6; color: white; padding: 3px 10px; border-radius: 12px; font-size: 0.70rem; font-weight: bold;}
+    .badge-active { background-color: #10b981; color: white; padding: 3px 10px; border-radius: 12px; font-size: 0.70rem; font-weight: bold;}
+    .select2-container .select2-selection--multiple { min-height: 28px; font-size: 0.75rem; border-color: #d1d5db; border-radius: 6px;}
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans">
+
+  <div class="w-full bg-blue-900 text-white p-4 shadow-md flex justify-between items-center">
+    <h1 class="text-2xl font-bold tracking-wider">DECATHLON | NWS Dashboard</h1>
+    <div id="loader" class="animate-pulse font-semibold text-blue-200">Processing Data...</div>
+  </div>
+
+  <div class="bg-white border-b flex space-x-4 px-6 pt-4 sticky top-0 z-10">
+    <button onclick="switchTab('master')" class="tab-btn px-4 py-2 border-b-4 border-blue-600 text-blue-600 font-bold" id="btn-master">Master Database</button>
+    <button onclick="switchTab('perf')" class="tab-btn px-4 py-2 border-b-4 border-transparent text-gray-500 hover:text-blue-600 transition-colors" id="btn-perf">NWS Performance</button>
+  </div>
+
+  <div class="p-6">
+    <div id="master" class="tab-content active bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+      <div class="flex justify-between items-center mb-6">
+        <div class="bg-blue-50 border border-blue-200 px-6 py-3 rounded-lg shadow-sm">
+          <p class="text-xs text-blue-600 font-bold uppercase tracking-wider">Total Models Tracked</p>
+          <h3 class="text-3xl font-black text-blue-900" id="total-models">--</h3>
+        </div>
+        <div class="space-x-3">
+          <button id="btn-filter-new" class="bg-gray-100 hover:bg-blue-100 border border-gray-300 text-gray-700 px-4 py-2 rounded shadow-sm font-semibold transition-colors">🎯 Filter NEW</button>
+          <button id="btn-reset" class="bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 px-4 py-2 rounded shadow-sm font-semibold transition-colors">🔄 Reset Filters</button>
+        </div>
+      </div>
+
+      <div class="w-full">
+        <table id="masterTable" class="display stripe hover w-full text-sm">
+          <thead>
+            <tr>
+              <th>Model Code</th><th>Model Name</th>
+              <th>Tag</th><th>MP Price</th><th>NOP</th><th>Gender</th><th>Sector</th><th>Dept</th>
+              <th>SubDept</th><th>DSM</th><th>Code(ABC)</th><th>Color</th><th>Sportpractice</th><th>Suggested Name</th>
+            </tr>
+            <tr id="filter-row">
+              <th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>
+              <th></th><th></th><th></th><th></th><th></th><th></th>
+            </tr>
+          </thead>
+          <tbody id="masterBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="perf" class="tab-content bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+      
+      <div class="flex justify-between items-center mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+        <div class="flex space-x-6 items-center">
+          <div>
+            <label class="text-xs font-bold text-gray-500 uppercase">Metric</label><br>
+            <select id="perf-metric" class="border border-gray-300 rounded px-3 py-2 text-sm font-bold bg-white">
+              <option value="val">Sales Value (Y)</option>
+              <option value="qty">Sales Quantity (Y)</option>
+              <option value="mar">Sales Margin (Y)</option>
+            </select>
+          </div>
+          
+          <div class="border-l border-gray-300 h-10"></div>
+          
+          <div>
+            <label class="text-xs font-bold text-gray-500 uppercase">Month (1-12)</label><br>
+            <select id="perf-month" class="border border-gray-300 rounded px-3 py-2 text-sm font-bold bg-white w-24">
+              <option value="">-- All --</option>
+              <script>for(let i=1;i<=12;i++) document.write(`<option value="${i}">Month ${i}</option>`);</script>
+            </select>
+          </div>
+          
+          <div>
+            <label class="text-xs font-bold text-gray-500 uppercase">Week (1-52)</label><br>
+            <select id="perf-week" class="border border-gray-300 rounded px-3 py-2 text-sm font-bold bg-white w-24">
+              <option value="">-- All --</option>
+              <script>for(let i=1;i<=52;i++) document.write(`<option value="${i}">Week ${i}</option>`);</script>
+            </select>
+          </div>
+
+          <button id="btn-perf-reset" class="mt-4 bg-red-100 text-red-700 px-3 py-2 rounded text-sm font-bold hover:bg-red-200 transition">
+             Reset to YTD
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-6 mb-8">
+        <div class="bg-blue-50 border border-blue-200 p-4 rounded-lg shadow-sm">
+          <p class="text-xs font-bold text-blue-600 uppercase">B2B (Wholesale) <span class="time-label">YTD</span></p>
+          <h3 class="text-3xl font-black text-blue-900 mt-1" id="card-b2b">--</h3>
+          <p class="text-sm font-semibold mt-1" id="grow-b2b">--</p>
+        </div>
+        <div class="bg-green-50 border border-green-200 p-4 rounded-lg shadow-sm">
+          <p class="text-xs font-bold text-green-600 uppercase">Quick Commerce <span class="time-label">YTD</span></p>
+          <h3 class="text-3xl font-black text-green-900 mt-1" id="card-qc">--</h3>
+          <p class="text-sm font-semibold mt-1" id="grow-qc">--</p>
+        </div>
+        <div class="bg-purple-50 border border-purple-200 p-4 rounded-lg shadow-sm">
+          <p class="text-xs font-bold text-purple-600 uppercase">Marketplace <span class="time-label">YTD</span></p>
+          <h3 class="text-3xl font-black text-purple-900 mt-1" id="card-mkpl">--</h3>
+          <p class="text-sm font-semibold mt-1" id="grow-mkpl">--</p>
+        </div>
+      </div>
+
+      <div class="w-full">
+        <table id="perfTable" class="display stripe hover w-full text-sm text-left">
+          <thead>
+            <tr>
+              <th style="min-width: 80px;">Model Code</th><th style="min-width: 250px;">Model Name</th>
+              <th>B2B Sales</th><th>B2B Grw%</th>
+              <th>QC Sales</th><th>QC Grw%</th>
+              <th>MKPL Sales</th><th>MKPL Grw%</th>
+            </tr>
+          </thead>
+          <tbody id="perfBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let masterDataTable, perfDataTable;
+    let globalPerfData = [];
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('border-blue-600', 'text-blue-600', 'font-bold');
+        el.classList.add('border-transparent', 'text-gray-500');
+      });
+      document.getElementById(tabId).classList.add('active');
+      document.getElementById('btn-' + tabId).classList.add('border-blue-600', 'text-blue-600', 'font-bold');
+      
+      setTimeout(() => { $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust(); }, 50);
+    }
+
+    const fmt = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
+    function calcGrowth(v26, v25) {
+      if(v25 === 0) return v26 > 0 ? `<span class="text-green-600">+100%</span>` : `<span class="text-gray-500">0%</span>`;
+      let g = ((v26 - v25) / v25) * 100;
+      return g >= 0 ? `<span class="text-green-600">+${g.toFixed(1)}%</span>` : `<span class="text-red-600">${g.toFixed(1)}%</span>`;
+    }
+
+    window.onload = function() {
+      google.script.run.withSuccessHandler(renderDashboard).getDashboardData();
+    };
+
+    function renderDashboard(data) {
+      document.getElementById('loader').innerText = "Data Synced: " + data.timestamp;
+      document.getElementById('total-models').innerText = data.totalTracked;
+      globalPerfData = data.performanceData;
+
+      let masterHtml = '';
+      data.masterData.forEach(m => {
+        let tag = m.isNew ? '<span class="badge-new">NEW</span>' : '<span class="badge-active">ACTIVE</span>';
+        masterHtml += `<tr>
+          <td class="font-bold text-gray-900">${m.code||'-'}</td>
+          <td class="font-medium">${m.mName||'-'}</td>
+          <td>${tag}</td><td>${m.mpPrice ? '₹'+m.mpPrice : '-'}</td>
+          <td class="whitespace-nowrap">${m.nop||'-'}</td><td class="whitespace-nowrap">${m.finalGender||'-'}</td>
+          <td class="whitespace-nowrap">${m.sector||'-'}</td><td class="whitespace-nowrap">${m.dept||'-'}</td>
+          <td class="whitespace-nowrap">${m.subdept||'-'}</td><td class="whitespace-nowrap">${m.dsm||'-'}</td>
+          <td class="whitespace-nowrap">${m.codeAbc||'-'}</td><td class="capitalize whitespace-nowrap">${m.color||'-'}</td>
+          <td style="max-width: 160px; white-space: normal; line-height: 1.2;">${m.sportpractice||'-'}</td>
+          <td class="whitespace-nowrap">${m.onlineSuggestedName||''}</td>
+        </tr>`;
+      });
+      document.getElementById('masterBody').innerHTML = masterHtml;
+
+      masterDataTable = $('#masterTable').DataTable({ pageLength: 15, scrollX: true });
+      perfDataTable = $('#perfTable').DataTable({ pageLength: 15 });
+      
+      updatePerformanceView(); 
+    }
+
+    // --- Performance UI Logic ---
+    $('#perf-metric').on('change', updatePerformanceView);
+    
+    $('#perf-month').on('change', function() {
+      if($(this).val() !== "") {
+         $('#perf-week').val("").prop('disabled', true).addClass('bg-gray-100');
+      } else {
+         $('#perf-week').prop('disabled', false).removeClass('bg-gray-100');
+      }
+      updatePerformanceView();
+    });
+
+    $('#perf-week').on('change', function() {
+      if($(this).val() !== "") {
+         $('#perf-month').val("").prop('disabled', true).addClass('bg-gray-100');
+      } else {
+         $('#perf-month').prop('disabled', false).removeClass('bg-gray-100');
+      }
+      updatePerformanceView();
+    });
+
+    $('#btn-perf-reset').on('click', function() {
+      $('#perf-month').val("").prop('disabled', false).removeClass('bg-gray-100');
+      $('#perf-week').val("").prop('disabled', false).removeClass('bg-gray-100');
+      $('#perf-metric').val('val');
+      updatePerformanceView();
+    });
+
+    function updatePerformanceView() {
+      let metric = $('#perf-metric').val(); 
+      let month = $('#perf-month').val();
+      let week = $('#perf-week').val();
+
+      let isVal = (metric === 'val');
+      let totB2B=0, totB2B_LY=0;
+      let totQC=0, totQC_LY=0;
+      let totMKPL=0, totMKPL_LY=0;
+
+      // Update Labels
+      let label = "YTD";
+      if(month !== "") label = "Month " + month;
+      if(week !== "") label = "Week " + week;
+      document.querySelectorAll('.time-label').forEach(el => el.innerText = label);
+
+      perfDataTable.clear();
+
+      globalPerfData.forEach(p => {
+        let cur;
+        if(month !== "") cur = p.months[month][metric];
+        else if(week !== "") cur = p.weeks[week][metric];
+        else cur = p.ytd[metric];
+        
+        totB2B += cur.b2b26; totB2B_LY += cur.b2b25;
+        totQC += cur.qc26; totQC_LY += cur.qc25;
+        totMKPL += cur.mkpl26; totMKPL_LY += cur.mkpl25;
+
+        if (cur.b2b26 === 0 && cur.qc26 === 0 && cur.mkpl26 === 0) return; // Skip entirely empty rows
+
+        let pre = isVal ? '₹' : '';
+        perfDataTable.row.add([
+          `<span class="font-bold text-gray-900">${p.code}</span>`, 
+          `<span class="font-medium">${p.name}</span>`,
+          `<span class="font-bold text-blue-700">${pre + fmt.format(cur.b2b26)}</span>`, calcGrowth(cur.b2b26, cur.b2b25),
+          `<span class="font-bold text-green-700">${pre + fmt.format(cur.qc26)}</span>`, calcGrowth(cur.qc26, cur.qc25),
+          `<span class="font-bold text-purple-700">${pre + fmt.format(cur.mkpl26)}</span>`, calcGrowth(cur.mkpl26, cur.mkpl25)
+        ]);
+      });
+
+      perfDataTable.draw();
+
+      let preCard = isVal ? '₹' : '';
+      document.getElementById('card-b2b').innerText = preCard + fmt.format(totB2B);
+      document.getElementById('grow-b2b').innerHTML = "Growth LY: " + calcGrowth(totB2B, totB2B_LY);
+      
+      document.getElementById('card-qc').innerText = preCard + fmt.format(totQC);
+      document.getElementById('grow-qc').innerHTML = "Growth LY: " + calcGrowth(totQC, totQC_LY);
+      
+      document.getElementById('card-mkpl').innerText = preCard + fmt.format(totMKPL);
+      document.getElementById('grow-mkpl').innerHTML = "Growth LY: " + calcGrowth(totMKPL, totMKPL_LY);
+    }
+  </script>
+</body>
+</html>
