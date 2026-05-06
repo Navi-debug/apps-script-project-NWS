@@ -1,0 +1,635 @@
+const SECONDARY_WORKBOOK_ID = ''; 
+const ZAR49_WORKBOOK_ID = '1RwFe3as4vlCXc0oMRdntzGVufgXSDInIJwPy6L_pwuw'; 
+const CACHE_SHEET_NAME = '_NWS_CACHE_';
+// 🔥 NEW: External Usage Log Database
+const USAGE_LOG_WORKBOOK_ID = '1_YfuhRCcL3OPpKXp2ijxe0b-XV6yoBR5b4G4_dojfIY';
+
+function doGet() {
+  return HtmlService.createTemplateFromFile('Index')
+    .evaluate()
+    .setTitle('MOVE, TRAIN & RUN | NWS')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+// ======================================================================
+// 📊 USAGE TRACKING ENGINE
+// ======================================================================
+function logUserAction(action) {
+  try {
+    const ss = SpreadsheetApp.openById(USAGE_LOG_WORKBOOK_ID);
+    let sheet = ss.getSheets()[0]; 
+    
+    // Auto-create headers if the sheet is completely empty
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(['Timestamp', 'User Email', 'Action / Event View']);
+      sheet.getRange(1, 1, 1, 3).setFontWeight('bold').setBackground('#e2e8f0');
+    }
+    
+    const userEmail = Session.getActiveUser().getEmail() || 'Unknown/Anonymous User';
+    const timestamp = new Date().toLocaleString();
+    
+    sheet.appendRow([timestamp, userEmail, action]);
+  } catch (e) {
+    // Fails silently so user experience is never interrupted if logging errors out
+    console.error("Usage Log Error: " + e.message);
+  }
+}
+
+// ======================================================================
+// 🚀 HIGH-SPEED CACHE ENGINE W/ LIVE QC OVERLAY
+// ======================================================================
+function getDashboardData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const cacheSheet = ss.getSheetByName(CACHE_SHEET_NAME);
+  
+  let jsonString = "";
+  if (!cacheSheet || cacheSheet.getLastRow() === 0) {
+    jsonString = updateCache(); 
+  } else {
+    const dataChunks = cacheSheet.getDataRange().getValues();
+    jsonString = dataChunks.map(row => row[0]).join('');
+  }
+
+  try {
+    let dashboardData = JSON.parse(jsonString);
+    let qcSheet = ss.getSheetByName('QC Offer');
+    if(qcSheet) {
+       let qcData = qcSheet.getDataRange().getValues();
+       if(qcData.length > 1) {
+          let head = qcData[0].map(h => String(h).toLowerCase().trim());
+          let iMod = head.findIndex(h => h === 'model code' || h === 'model' || h.includes('model'));
+          if(iMod === -1) iMod = 0;
+          let targetColIdx = head.findIndex(h => h.includes('permanent') || h.includes('considered'));
+          let recColIdx = head.findIndex(h => h.includes('recommend'));
+          let remColIdx = head.findIndex(h => h === 'remarks' || h === 'remark');
+
+          if(targetColIdx !== -1 || recColIdx !== -1 || remColIdx !== -1) {
+             let liveQcMap = {};
+             for(let i=1; i<qcData.length; i++) {
+                let code = String(qcData[i][iMod]).trim();
+                let isTarget = targetColIdx !== -1 ? (qcData[i][targetColIdx] === true || String(qcData[i][targetColIdx]).toUpperCase() === 'TRUE') : false;
+                let isRec = recColIdx !== -1 ? (qcData[i][recColIdx] === true || String(qcData[i][recColIdx]).toUpperCase() === 'TRUE') : false;
+                let remarkText = remColIdx !== -1 ? String(qcData[i][remColIdx] || '') : '';
+                liveQcMap[code] = { isQcTarget: isTarget, isRecommended: isRec, remark: remarkText };
+             }
+             dashboardData.masterData.forEach(m => {
+                if(liveQcMap.hasOwnProperty(m.code)) {
+                   if (targetColIdx !== -1) m.isQcTarget = liveQcMap[m.code].isQcTarget;
+                   if (recColIdx !== -1) m.isRecommended = liveQcMap[m.code].isRecommended;
+                   if (remColIdx !== -1) m.remark = liveQcMap[m.code].remark;
+                }
+             });
+          }
+       }
+    }
+    return JSON.stringify(dashboardData); 
+  } catch(e) {
+    return jsonString; 
+  }
+}
+
+function updateCache() {
+  const finalData = calculateDashboardData(); 
+  const jsonString = JSON.stringify(finalData); 
+  
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let cacheSheet = ss.getSheetByName(CACHE_SHEET_NAME);
+  if (!cacheSheet) {
+    cacheSheet = ss.insertSheet(CACHE_SHEET_NAME);
+    cacheSheet.hideSheet(); 
+  }
+  
+  const chunks = jsonString.match(/[\s\S]{1,45000}/g);
+  const rows = chunks.map(chunk => [chunk]);
+  
+  cacheSheet.clear();
+  cacheSheet.getRange(1, 1, rows.length, 1).setValues(rows);
+  
+  return jsonString; 
+}
+
+function forceSyncData() {
+  return updateCache();
+}
+
+// ======================================================================
+// ⚙️ THE 4-STEP MATH ENGINE
+// ======================================================================
+function calculateDashboardData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const secondarySS = SECONDARY_WORKBOOK_ID ? SpreadsheetApp.openById(SECONDARY_WORKBOOK_ID) : ss;
+
+  const models = {}; 
+  const perfModels = {};
+  const secondLifeRegex = /2nd\s*life/i; 
+
+  const lsSheet = ss.getSheetByName('LS1,2 Models');
+  if (lsSheet) {
+    const lsData = lsSheet.getDataRange().getValues();
+    const codeRegex = /^\d{7}$/; 
+
+    for (let i = 2; i < lsData.length; i++) { 
+      let val1 = String(lsData[i][12]).trim(); 
+      let mName1 = String(lsData[i][13] || '').trim();
+      
+      if (codeRegex.test(val1) && !models[val1] && !secondLifeRegex.test(mName1)) {
+        models[val1] = { 
+          isNew: false, isDiscontinued: false, code: val1, mName: mName1, 
+          prod1: String(lsData[i][8] || '').trim(), prod2: String(lsData[i][9] || '').trim(),
+          nop: String(lsData[i][9] || '').trim(), sector: String(lsData[i][2] || '').trim(), 
+          dept: String(lsData[i][3] || '').trim(), subdept: String(lsData[i][2] || '').trim(), 
+          family: String(lsData[i][7] || '').trim(), dsm: String(lsData[i][11] || '').trim(), codeAbc: String(lsData[i][6] || '').trim(),
+          isQcTarget: false, isRecommended: false, remark: '', myntraStatus: '', ajioStatus: '', tataCliqStatus: '', blinkit: '', zepto: '', swiggy: '', cataloguePrice: '', mpPrice: '', color: '-', finalGender: '-'
+        };
+      }
+      
+      let newCode = null;
+      for (let c = 18; c < lsData[i].length; c++) {
+        let testVal = String(lsData[i][c]).trim();
+        if (codeRegex.test(testVal)) { newCode = testVal; break; }
+      }
+
+      if (newCode && !models[newCode]) {
+        let mName2 = String(lsData[i][28] || '').trim();
+        if (!secondLifeRegex.test(mName2)) {
+          models[newCode] = { 
+            isNew: true, isDiscontinued: false, code: newCode, mName: mName2, 
+            prod1: String(lsData[i][8+18] || '').trim(), prod2: String(lsData[i][9+18] || '').trim(),
+            nop: String(lsData[i][9+18] || '').trim(), sector: String(lsData[i][19] || '').trim(), 
+            dept: String(lsData[i][20] || '').trim(), subdept: String(lsData[i][19] || '').trim(), 
+            family: String(lsData[i][23] || '').trim(), dsm: String(lsData[i][26] || '').trim(), codeAbc: String(lsData[i][22] || '').trim(),
+            isQcTarget: false, isRecommended: false, remark: '', myntraStatus: '', ajioStatus: '', tataCliqStatus: '', blinkit: '', zepto: '', swiggy: '', cataloguePrice: '', mpPrice: '', color: '-', finalGender: '-'
+          };
+        }
+      }
+    }
+  }
+
+  try {
+    const zarSS = SpreadsheetApp.openById(ZAR49_WORKBOOK_ID);
+    const zarSheet = zarSS.getSheetByName('Main');
+    if (zarSheet) {
+      const zarData = zarSheet.getDataRange().getValues();
+      let mCodeIdx = -1, priceIdx = -1;
+      for(let r=0; r<5 && (mCodeIdx===-1 || priceIdx===-1); r++) {
+        for(let c=0; c<zarData[r].length; c++) {
+          let h = String(zarData[r][c]).trim().toLowerCase();
+          if(h === 'model code' || h === 'model') mCodeIdx = c;
+          if(h === 'sales prices' || h === 'sales price' || h === 'mrp') priceIdx = c;
+        }
+      }
+      if(mCodeIdx !== -1 && priceIdx !== -1) {
+        const priceMap = {};
+        for(let i=0; i<zarData.length; i++) {
+          let mCode = String(zarData[i][mCodeIdx]).trim();
+          let price = zarData[i][priceIdx];
+          if(!mCode || isNaN(price) || price === '') continue;
+          if(!priceMap[mCode]) priceMap[mCode] = {};
+          priceMap[mCode][price] = (priceMap[mCode][price] || 0) + 1;
+        }
+        for(let mCode in priceMap) {
+          let maxCount = 0, mostRecurring = null;
+          for(let p in priceMap[mCode]) {
+            if(priceMap[mCode][p] > maxCount) { maxCount = priceMap[mCode][p]; mostRecurring = p; }
+          }
+          if(models[mCode]) models[mCode].cataloguePrice = mostRecurring;
+        }
+      }
+    }
+  } catch(e) { }
+
+  const mpSheet = secondarySS.getSheetByName('MP Offer') || ss.getSheetByName('MP Offer');
+  if (mpSheet) {
+    const mpData = mpSheet.getDataRange().getValues();
+    let head = mpData[0].map(h => String(h).trim().toLowerCase());
+    let iMyn = head.findIndex(h => h.includes('myntra'));
+    let iAji = head.findIndex(h => h.includes('ajio'));
+    let iTat = head.findIndex(h => h.includes('tata'));
+    let iMpP = head.findIndex(h => h.includes('mp price'));
+    let iGen = head.findIndex(h => h.includes('gender'));
+
+    for(let i=1; i<mpData.length; i++) {
+      let mCode = String(mpData[i][0]).trim();
+      if(models[mCode]) {
+        if(iMpP > -1) models[mCode].mpPrice = mpData[i][iMpP]; 
+        if(iGen > -1) models[mCode].fallbackGender = String(mpData[i][iGen] || ''); 
+        if(iMyn > -1) models[mCode].myntraStatus = String(mpData[i][iMyn] || '').trim();
+        if(iAji > -1) models[mCode].ajioStatus = String(mpData[i][iAji] || '').trim();
+        if(iTat > -1) models[mCode].tataCliqStatus = String(mpData[i][iTat] || '').trim();
+      }
+    }
+  }
+
+  const attrSheet = secondarySS.getSheetByName('Attribute Dump') || ss.getSheetByName('Attribute Dump');
+  if (attrSheet) {
+    const attrData = attrSheet.getDataRange().getValues();
+    for(let i=1; i<attrData.length; i++) {
+      let mCode = String(attrData[i][1]).trim(); 
+      if(models[mCode]) {
+        let primaryNop = String(attrData[i][6]).trim(); 
+        if(primaryNop) models[mCode].nop = primaryNop; 
+        models[mCode].gender = String(attrData[i][12] || ''); 
+        models[mCode].sportpractice = String(attrData[i][13] || ''); 
+        models[mCode].onlineSuggestedName = String(attrData[i][7] || ''); 
+        let colorMatch = String(attrData[i][14] || '').match(/"bcdHexaLabel"\s*:\s*"([^"]+)"/i);
+        models[mCode].color = colorMatch ? colorMatch[1] : ''; 
+      }
+    }
+  }
+
+  for (let key in models) {
+    let g = models[key].gender || models[key].fallbackGender || '';
+    if (g.toUpperCase().includes('MENS + UNISEX') || g.toUpperCase().includes('MENS+UNISEX')) g = 'No Gender';
+    models[key].finalGender = g;
+  }
+
+  const qcSheet = ss.getSheetByName('QC Offer');
+  if (qcSheet) {
+    const qcData = qcSheet.getDataRange().getValues();
+    let head = qcData[0].map(h => String(h).trim().toLowerCase());
+    
+    let iMod = head.findIndex(h => h === 'model code' || h === 'model' || h.includes('model'));
+    if(iMod === -1) iMod = 0;
+
+    let iZep = head.findIndex(h => h.includes('zepto'));
+    let iSwi = head.findIndex(h => h.includes('swiggy'));
+    let iBli = head.findIndex(h => h.includes('blinkit'));
+    
+    let permColIdx = head.findIndex(h => h.includes('permanent') || h.includes('considered'));
+    if (permColIdx === -1) { permColIdx = qcData[0].length; qcSheet.getRange(1, permColIdx + 1).setValue('QC Target Permanent'); qcData[0].push('QC Target Permanent'); }
+    
+    let recColIdx = head.findIndex(h => h.includes('recommend'));
+    if (recColIdx === -1) { recColIdx = qcData[0].length; qcSheet.getRange(1, recColIdx + 1).setValue('To Recommend'); qcData[0].push('To Recommend'); }
+
+    let remColIdx = head.findIndex(h => h === 'remarks' || h === 'remark');
+    if (remColIdx === -1) { remColIdx = qcData[0].length; qcSheet.getRange(1, remColIdx + 1).setValue('Remarks'); qcData[0].push('Remarks'); }
+    
+    for (let i = 1; i < qcData.length; i++) {
+      let mCode = String(qcData[i][iMod]).trim();
+      if (models[mCode]) {
+        if(iZep > -1) models[mCode].zepto = String(qcData[i][iZep] || '').trim().toUpperCase();
+        if(iSwi > -1) models[mCode].swiggy = String(qcData[i][iSwi] || '').trim().toUpperCase();
+        if(iBli > -1) models[mCode].blinkit = String(qcData[i][iBli] || '').trim().toUpperCase();
+        
+        models[mCode].isQcTarget = (qcData[i][permColIdx] === true || String(qcData[i][permColIdx]).toUpperCase() === 'TRUE');
+        models[mCode].isRecommended = (qcData[i][recColIdx] === true || String(qcData[i][recColIdx]).toUpperCase() === 'TRUE');
+        models[mCode].remark = String(qcData[i][remColIdx] || '');
+      }
+    }
+  }
+
+  function getModelMeta(mCode, mName) {
+    if(models[mCode]) return models[mCode];
+    let ghost = {
+      isNew: false, isDiscontinued: true, code: mCode, mName: mName || 'Unknown',
+      nop: '-', sector: '-', dept: '-', subdept: '-', family: '-', dsm: '-', codeAbc: '-',
+      isQcTarget: false, isRecommended: false, remark: '', myntraStatus: '', ajioStatus: '', tataCliqStatus: '', blinkit: '', zepto: '', swiggy: '', cataloguePrice: '', mpPrice: '', color: '-', finalGender: '-'
+    };
+    models[mCode] = ghost; 
+    return ghost;
+  }
+
+  const getBase = () => ({
+    val: { swo26:0, qc26:0, b2b26:0, mkpl26:0, swo25:0, qc25:0, b2b25:0, mkpl25:0 },
+    qty: { swo26:0, qc26:0, b2b26:0, mkpl26:0, swo25:0, qc25:0, b2b25:0, mkpl25:0 }
+  });
+
+  const mainSalesSheet = ss.getSheetByName('B2B + QC + MKPL Sales');
+  let maxWeek26 = 0; 
+  let colsMeta = [];
+
+  if (mainSalesSheet) {
+    const msData = mainSalesSheet.getDataRange().getValues();
+    let rChan = -1, rYear = -1, rMonth = -1, rWeek = -1;
+    for (let r = 0; r < 10 && r < msData.length; r++) {
+      let rowStr = msData[r].join(' ').toLowerCase();
+      if (rowStr.includes('distribution channel')) rChan = r;
+      if (rowStr.includes('calendar year') && !rowStr.includes('year/w')) rYear = r;
+      if (rowStr.includes('calendar month')) rMonth = r;
+      if (rowStr.includes('calendar year/w')) rWeek = r;
+    }
+
+    if (rChan !== -1 && rWeek !== -1) {
+      let dataStartCol = -1;
+      for (let c = 0; c < msData[rWeek].length; c++) {
+        if (/^\d{1,2}\.\d{4}$/.test(String(msData[rWeek][c]).trim())) { dataStartCol = c; break; }
+      }
+
+      let codeCol = 8, nameCol = 9, keyFigCol = 11; 
+      let firstDataRow = msData[rWeek + 1];
+      if (firstDataRow) {
+         for (let c = 0; c < dataStartCol; c++) {
+           let val = String(firstDataRow[c]).trim();
+           if (/^\d{7}$/.test(val)) codeCol = c;
+           else if (val.includes('Sales Value') || val.includes('Sales Quantity')) keyFigCol = c;
+         }
+         nameCol = codeCol + 1; 
+      }
+
+      let curChan = '', curYear = '', curMonth = '';
+
+      for (let c = dataStartCol; c < msData[rWeek].length; c++) {
+        if (msData[rChan][c]) curChan = String(msData[rChan][c]).trim();
+        if (msData[rYear][c]) curYear = String(msData[rYear][c]).trim();
+        if (msData[rMonth][c]) curMonth = String(msData[rMonth][c]).trim();
+
+        let weekRaw = String(msData[rWeek][c]).trim();
+        if (!weekRaw) continue;
+
+        let w = parseInt(weekRaw.split('.')[0], 10);
+        let y = parseInt(curYear, 10);
+        let m = parseInt(curMonth, 10);
+
+        if (y === 2026 && w > maxWeek26) maxWeek26 = w;
+        colsMeta[c] = { channel: curChan, year: y, month: m, week: w };
+      }
+
+      for (let r = rWeek + 1; r < msData.length; r++) {
+        let row = msData[r];
+        let mCode = String(row[codeCol]).trim();
+        let mName = String(row[nameCol]).trim();
+        let keyFig = String(row[keyFigCol]).trim();
+
+        if (!mCode || secondLifeRegex.test(mName) || keyFig.includes('Margin')) continue;
+
+        if (!perfModels[mCode]) perfModels[mCode] = { code: mCode, ytd: getBase(), fy25: getBase(), months: {}, weeks: {} };
+        let p = perfModels[mCode];
+        getModelMeta(mCode, mName); 
+
+        let metric = keyFig.includes('Quantity') ? 'qty' : 'val';
+
+        for (let c = dataStartCol; c < row.length; c++) {
+          let meta = colsMeta[c];
+          if (!meta) continue;
+
+          let val = Number(String(row[c]).replace(/,/g, '')) || 0;
+          let yrKey = meta.year === 2026 ? '26' : (meta.year === 2025 ? '25' : null);
+          if (!yrKey || val === 0) continue;
+
+          let isMkpl = meta.channel.toLowerCase().includes('marketplace');
+          let isOthers = meta.channel.toLowerCase().includes('sales with others');
+
+          if (meta.week <= maxWeek26) {
+             if (isMkpl) p.ytd[metric]['mkpl'+yrKey] += val;
+             if (isOthers) p.ytd[metric]['swo'+yrKey] += val;
+          }
+          if (yrKey === '25') {
+             if (isMkpl) p.fy25[metric]['mkpl'+yrKey] += val;
+             if (isOthers) p.fy25[metric]['swo'+yrKey] += val;
+          }
+          if (meta.month >= 1 && meta.month <= 12) {
+             if (!p.months[meta.month]) p.months[meta.month] = getBase();
+             if (isMkpl) p.months[meta.month][metric]['mkpl'+yrKey] += val;
+             if (isOthers) p.months[meta.month][metric]['swo'+yrKey] += val;
+          }
+          if (meta.week >= 1 && meta.week <= 52) {
+             if (!p.weeks[meta.week]) p.weeks[meta.week] = getBase();
+             if (isMkpl) p.weeks[meta.week][metric]['mkpl'+yrKey] += val;
+             if (isOthers) p.weeks[meta.week][metric]['swo'+yrKey] += val;
+          }
+        }
+      }
+    }
+  }
+
+  const qcSalesSheet = ss.getSheetByName('QC Sales (Sell in - Sales)');
+  let latestQcDateTs = 0;
+  let latestQcDateStr = "--";
+
+  if (qcSalesSheet) {
+    const qcsData = qcSalesSheet.getDataRange().getValues();
+    const qcsDisplayData = qcSalesSheet.getDataRange().getDisplayValues(); 
+    const qcsHeaders = qcsData[0];
+    let mIdx = qcsHeaders.indexOf('Model');
+    let dIdx = qcsHeaders.indexOf('Invoice date');
+    let vIdx = qcsHeaders.indexOf('Total');
+    let qIdx = -1;
+    for(let i=0; i<qcsHeaders.length; i++) { if(String(qcsHeaders[i]).toLowerCase().includes('shipped')) { qIdx = i; break; } }
+
+    if(mIdx > -1 && dIdx > -1) {
+      for(let i=1; i<qcsData.length; i++) {
+        let mCode = String(qcsData[i][mIdx]).trim();
+        let rawDateStr = qcsDisplayData[i][dIdx]; 
+        
+        if(!mCode || String(qcsData[i][0]).toLowerCase().includes('total')) continue;
+        if (!models[mCode] && !perfModels[mCode]) continue; 
+        
+        let dateObj = parseStrictDDMMYYYY(rawDateStr);
+        if(!dateObj || isNaN(dateObj)) continue;
+        
+        if (dateObj.getTime() > latestQcDateTs) {
+           latestQcDateTs = dateObj.getTime();
+           let dd = String(dateObj.getDate()).padStart(2, '0');
+           let mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+           let yyyy = dateObj.getFullYear();
+           latestQcDateStr = `${dd}-${mm}-${yyyy}`;
+        }
+        
+        let rawQty = Number(String(qcsData[i][qIdx]).replace(/,/g, '')) || 0;
+        let rawVal = Number(String(qcsData[i][vIdx]).replace(/,/g, '')) || 0;
+
+        let yw = getStandardWeekAndYear(dateObj); 
+        let m = dateObj.getMonth() + 1;
+        let yr = yw.year;
+
+        if (!perfModels[mCode]) perfModels[mCode] = { code: mCode, ytd: getBase(), fy25: getBase(), months: {}, weeks: {} };
+        let p = perfModels[mCode];
+        getModelMeta(mCode, "QC Model"); 
+
+        if (yr === 2026 || yr === 2025) {
+           let yrKey = yr === 2026 ? '26' : '25';
+           
+           if (yw.week <= maxWeek26) {
+              p.ytd.val['qc'+yrKey] += rawVal; p.ytd.qty['qc'+yrKey] += rawQty;
+           }
+           if (yr === 2025) {
+              p.fy25.val.qc25 += rawVal; p.fy25.qty.qc25 += rawQty;
+           }
+           
+           if (!p.weeks[yw.week]) p.weeks[yw.week] = getBase();
+           p.weeks[yw.week].val['qc'+yrKey] += rawVal; p.weeks[yw.week].qty['qc'+yrKey] += rawQty;
+           
+           if (!p.months[m]) p.months[m] = getBase();
+           p.months[m].val['qc'+yrKey] += rawVal; p.months[m].qty['qc'+yrKey] += rawQty;
+        }
+      }
+    }
+  }
+
+  const auditMap = {}; 
+
+  for (let code in perfModels) {
+     let p = perfModels[code];
+     let meta = models[code];
+     p.name = meta.mName; p.sector = meta.sector; p.dept = meta.dept; p.subdept = meta.subdept; p.family = meta.family; p.dsm = meta.dsm; p.codeAbc = meta.codeAbc; p.prod2 = meta.prod2;
+
+     p.ytd.val.b2b26 = p.ytd.val.swo26 - p.ytd.val.qc26; p.ytd.qty.b2b26 = p.ytd.qty.swo26 - p.ytd.qty.qc26;
+     p.ytd.val.b2b25 = p.ytd.val.swo25 - p.ytd.val.qc25; p.ytd.qty.b2b25 = p.ytd.qty.swo25 - p.ytd.qty.qc25;
+     
+     p.fy25.val.b2b25 = p.fy25.val.swo25 - p.fy25.val.qc25; p.fy25.qty.b2b25 = p.fy25.qty.swo25 - p.fy25.qty.qc25;
+
+     for(let w in p.weeks) {
+        p.weeks[w].val.b2b26 = p.weeks[w].val.swo26 - p.weeks[w].val.qc26;
+        p.weeks[w].qty.b2b26 = p.weeks[w].qty.swo26 - p.weeks[w].qty.qc26;
+        p.weeks[w].val.b2b25 = p.weeks[w].val.swo25 - p.weeks[w].val.qc25;
+        p.weeks[w].qty.b2b25 = p.weeks[w].qty.swo25 - p.weeks[w].qty.qc25;
+
+        let auditKey = "Week " + String(w).padStart(2, '0') + "-2026";
+        if (!auditMap[auditKey]) auditMap[auditKey] = { week: parseInt(w), year: 2026, swo: 0, qc: 0, b2b: 0 };
+        auditMap[auditKey].swo += p.weeks[w].val.swo26;
+        auditMap[auditKey].qc += p.weeks[w].val.qc26;
+        auditMap[auditKey].b2b += p.weeks[w].val.b2b26;
+     }
+
+     for(let m in p.months) {
+        p.months[m].val.b2b26 = p.months[m].val.swo26 - p.months[m].val.qc26;
+        p.months[m].qty.b2b26 = p.months[m].qty.swo26 - p.months[m].qty.qc26;
+        p.months[m].val.b2b25 = p.months[m].val.swo25 - p.months[m].val.qc25;
+        p.months[m].qty.b2b25 = p.months[m].qty.swo25 - p.months[m].qty.qc25;
+     }
+  }
+
+  let auditArray = Object.keys(auditMap).map(k => ({
+     label: k, year: auditMap[k].year, week: auditMap[k].week, swo: auditMap[k].swo, qc: auditMap[k].qc, b2b: auditMap[k].b2b
+  })).sort((a,b) => {
+     if (a.year !== b.year) return a.year - b.year;
+     return a.week - b.week;
+  });
+
+  for (let key in models) {
+    if (secondLifeRegex.test(models[key].mName)) delete models[key];
+  }
+
+  const masterArray = Object.keys(models).map(k => models[k]);
+  const perfArray = Object.keys(perfModels).map(k => perfModels[k]);
+
+  return { masterData: masterArray, performanceData: perfArray, auditData: auditArray, totalTracked: masterArray.length, latestQcDate: latestQcDateStr, timestamp: new Date().toLocaleString() };
+}
+
+function parseStrictDDMMYYYY(str) {
+  if (!str) return null;
+  str = String(str).trim();
+  let parts = str.split(/[-/]/);
+  
+  if (parts.length === 3) {
+    let d = parseInt(parts[0], 10);
+    let m = parseInt(parts[1], 10) - 1; 
+    let y = parseInt(parts[2], 10);
+    if (y < 100) y += 2000;
+    
+    let dt = new Date(y, m, d);
+    if (!isNaN(dt.getTime())) return dt;
+  }
+  return new Date(str); 
+}
+
+function getStandardWeekAndYear(date) {
+  const d = new Date(date.getTime());
+  const startOfYear = new Date(d.getFullYear(), 0, 1);
+  const pastDaysOfYear = Math.floor((d - startOfYear) / 86400000);
+  const weekNum = Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
+  return { year: d.getFullYear(), week: weekNum };
+}
+
+function toggleQcTargetInSheet(modelCode, isChecked) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let qcSheet = ss.getSheetByName('QC Offer');
+    if(!qcSheet) { qcSheet = ss.insertSheet('QC Offer'); qcSheet.appendRow(['Model Code', 'Considered for QC', 'To Recommend', 'Remarks']); }
+
+    const data = qcSheet.getDataRange().getValues();
+    let head = data[0].map(h => String(h).toLowerCase().trim());
+    let iMod = head.findIndex(h => h === 'model code' || h === 'model' || h.includes('model'));
+    if(iMod === -1) iMod = 0; 
+    let targetColIdx = head.findIndex(h => h.includes('permanent') || h.includes('considered'));
+    if(targetColIdx === -1) { targetColIdx = data[0].length; qcSheet.getRange(1, targetColIdx + 1).setValue('Considered for QC'); }
+
+    let found = false;
+    for(let i=1; i<data.length; i++) {
+      if(String(data[i][iMod]).trim() === String(modelCode).trim()) {
+        qcSheet.getRange(i+1, targetColIdx + 1).setValue(isChecked);
+        found = true; break;
+      }
+    }
+    
+    if(!found) {
+       let newRow = new Array(Math.max(data[0].length, targetColIdx + 1)).fill('');
+       newRow[iMod] = String(modelCode).trim(); newRow[targetColIdx] = isChecked;
+       qcSheet.appendRow(newRow);
+    }
+    return "Success";
+  } catch(e) { throw new Error(e.message); }
+}
+
+function toggleRecommendInSheet(modelCode, isChecked) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let qcSheet = ss.getSheetByName('QC Offer');
+    if(!qcSheet) { qcSheet = ss.insertSheet('QC Offer'); qcSheet.appendRow(['Model Code', 'Considered for QC', 'To Recommend', 'Remarks']); }
+
+    const data = qcSheet.getDataRange().getValues();
+    let head = data[0].map(h => String(h).toLowerCase().trim());
+    let iMod = head.findIndex(h => h === 'model code' || h === 'model' || h.includes('model'));
+    if(iMod === -1) iMod = 0; 
+    
+    let recColIdx = head.findIndex(h => h.includes('recommend'));
+    if(recColIdx === -1) { recColIdx = data[0].length; qcSheet.getRange(1, recColIdx + 1).setValue('To Recommend'); }
+
+    let found = false;
+    for(let i=1; i<data.length; i++) {
+      if(String(data[i][iMod]).trim() === String(modelCode).trim()) {
+        qcSheet.getRange(i+1, recColIdx + 1).setValue(isChecked);
+        found = true; break;
+      }
+    }
+    
+    if(!found) {
+       let newRow = new Array(Math.max(data[0].length, recColIdx + 1)).fill('');
+       newRow[iMod] = String(modelCode).trim(); newRow[recColIdx] = isChecked;
+       qcSheet.appendRow(newRow);
+    }
+    return "Success";
+  } catch(e) { throw new Error(e.message); }
+}
+
+function updateRemarkInSheet(modelCode, remarkText) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let qcSheet = ss.getSheetByName('QC Offer');
+    if(!qcSheet) { qcSheet = ss.insertSheet('QC Offer'); qcSheet.appendRow(['Model Code', 'Considered for QC', 'To Recommend', 'Remarks']); }
+
+    const data = qcSheet.getDataRange().getValues();
+    let head = data[0].map(h => String(h).toLowerCase().trim());
+    let iMod = head.findIndex(h => h === 'model code' || h === 'model' || h.includes('model'));
+    if(iMod === -1) iMod = 0; 
+    
+    let remColIdx = head.findIndex(h => h === 'remarks' || h === 'remark');
+    if(remColIdx === -1) { remColIdx = data[0].length; qcSheet.getRange(1, remColIdx + 1).setValue('Remarks'); }
+
+    let found = false;
+    for(let i=1; i<data.length; i++) {
+      if(String(data[i][iMod]).trim() === String(modelCode).trim()) {
+        qcSheet.getRange(i+1, remColIdx + 1).setValue(remarkText);
+        found = true; break;
+      }
+    }
+    
+    if(!found) {
+       let newRow = new Array(Math.max(data[0].length, remColIdx + 1)).fill('');
+       newRow[iMod] = String(modelCode).trim(); newRow[remColIdx] = remarkText;
+       qcSheet.appendRow(newRow);
+    }
+    return "Success";
+  } catch(e) { throw new Error(e.message); }
+}
+
+function createExportSheet(data, title) {
+  const ss = SpreadsheetApp.create("Export - " + title + " - " + new Date().toLocaleDateString());
+  const sheet = ss.getSheets()[0];
+  if(data && data.length > 0) {
+    sheet.getRange(1, 1, data.length, data[0].length).setValues(data);
+    sheet.getRange(1, 1, 1, data[0].length).setFontWeight("bold").setBackground("#e2e8f0");
+  }
+  return ss.getUrl();
+}
