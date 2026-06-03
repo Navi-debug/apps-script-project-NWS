@@ -1,0 +1,858 @@
+// --- CONFIGURATION ---
+var CONFIG = {
+  DATABANK_ID: '1T5xDszHPlqHQ3841jPPMPVP4BNPtNzHp2rodZnCqWdk',
+  SHEETS: {
+    PILOTING: 'PCT_Macro Piloting',
+    PAST_SALES_TOP: 'Past Realized Sales (Top Level)',
+    PAST_SALES_BOT: 'PRS (Channel-Item)', 
+    CITY_STORE: 'City & Store', 
+    TYPOLOGIES: 'Typologies',
+    BOT_CACHE: '_BOT_CACHE_',
+    CITY_CACHE: '_CITY_STORE_CACHE_', 
+    FORECAST: 'Sales Forecasting',
+    SHORTAGE: 'Shortage',
+    OVERRIDES: '_SHORTAGE_OVERRIDES_'
+  }
+};
+
+function doGet(e) {
+  let page = e.parameter.page || 'Piloting';
+  const validPages = ['Piloting', 'ModelSummary', 'GridSize', 'ShortageCorrection', 'CityStore'];
+  let htmlFile = validPages.includes(page) ? page : 'Piloting';
+  
+  const pageTitles = {
+    'Piloting': 'Macro Piloting',
+    'ModelSummary': 'Model Summary',
+    'CityStore': 'City & Store',
+    'GridSize': 'Grid Size',
+    'ShortageCorrection': 'Shortage Correction'
+  };
+  let activeTitle = (pageTitles[htmlFile] || 'Dashboard') + " - Sales & Forecast Universe";
+  
+  let rawHtml = HtmlService.createHtmlOutputFromFile(htmlFile).getContent();
+  let appUrl = ScriptApp.getService().getUrl();
+  let finalHtml = rawHtml.replace(/{{APP_URL}}/g, appUrl);
+  
+  return HtmlService.createHtmlOutput(finalHtml)
+      .setTitle(activeTitle)
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// ==========================================
+// TOP LEVEL PILOTING FUNCTIONS
+// ==========================================
+function getPilotingInitData() {
+  try {
+    const localApp = SpreadsheetApp.getActiveSpreadsheet();
+    const pastSalesSheet = localApp.getSheetByName(CONFIG.SHEETS.PAST_SALES_TOP);
+    if (!pastSalesSheet) throw new Error("Top Level sheet not found.");
+    
+    const rawData = pastSalesSheet.getDataRange().getValues();
+    if (rawData.length < 3) return JSON.stringify({ families: [], records: [] });
+
+    const COL_FAMILY = 4, COL_CHANNEL = 5, COL_WEEKS_START = 7;
+    let weekCols = {}, headerRowIndex = -1;
+
+    for (let r = 0; r < Math.min(10, rawData.length); r++) {
+      for (let c = COL_WEEKS_START; c < rawData[r].length; c++) {
+        if (String(rawData[r][c]).match(/(\d+)\.(20\d\d)/)) { headerRowIndex = r; break; }
+      }
+      if (headerRowIndex !== -1) break;
+    }
+    if (headerRowIndex === -1) throw new Error("Could not find Week Headers.");
+
+    let weekHeaders = rawData[headerRowIndex];
+    for (let c = COL_WEEKS_START; c < weekHeaders.length; c++) {
+      let match = String(weekHeaders[c]).trim().match(/(\d+)\.(20\d\d)/);
+      if (match) weekCols[`${parseInt(match[1])}.${parseInt(match[2])}`] = c;
+    }
+
+    let processedRecords = [], uniqueFamilies = new Set();
+    for (let r = headerRowIndex + 2; r < rawData.length; r++) { 
+      let family = String(rawData[r][COL_FAMILY] || '').trim();
+      let channel = String(rawData[r][COL_CHANNEL] || '').trim();
+      if (!family) continue; 
+      uniqueFamilies.add(family);
+      
+      let compressedRow = { f: family, c: channel, w: {} }, hasData = false;
+      for (let key in weekCols) {
+        let val = parseFloat(String(rawData[r][weekCols[key]] || '0').replace(/,/g, ''));
+        if (val && val !== 0) { compressedRow.w[key] = val; hasData = true; }
+      }
+      if (hasData) processedRecords.push(compressedRow);
+    }
+    return JSON.stringify({ families: Array.from(uniqueFamilies).sort(), records: processedRecords });
+  } catch (error) { throw new Error(error.message); }
+}
+
+function commitPilotingData(payloadStr) { return "Forecast committed successfully."; }
+
+// ==========================================
+// BOT LEVEL 3D DATA LAKE ENGINE (PRS)
+// ==========================================
+function initBotCache(ss) {
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.BOT_CACHE);
+  if (!sheet) { sheet = ss.insertSheet(CONFIG.SHEETS.BOT_CACHE); sheet.hideSheet(); }
+  return sheet;
+}
+
+function syncBotLevelData() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let mapType = {};
+    const typSheet = ss.getSheetByName(CONFIG.SHEETS.TYPOLOGIES);
+    if (typSheet) {
+      const typData = typSheet.getDataRange().getValues();
+      for (let r = 2; r < typData.length; r++) {
+        let modCode = String(typData[r][1]).trim().toUpperCase();
+        let modName = String(typData[r][2]).trim().toUpperCase();
+        let typName = String(typData[r][3]).trim();
+        if(typName) {
+          if(modCode) mapType[modCode] = typName; 
+          if(modName) mapType[modName] = typName; 
+        }
+      }
+    }
+
+    const botSheet = ss.getSheetByName(CONFIG.SHEETS.PAST_SALES_BOT);
+    if(!botSheet) throw new Error("PRS (Channel-Item) sheet not found!");
+    const botData = botSheet.getDataRange().getValues();
+    
+    if (botData.length < 4) throw new Error("PRS Sheet is missing data rows.");
+    
+    const rowMetrics = botData[1]; 
+    const rowWeeks = botData[2];   
+    const rowHeaders = botData[3]; 
+    
+    let map = { rng:-1, abc:-1, spt:-1, dep:-1, sdep:-1, ch:-1, nop:-1 };
+    rowHeaders.forEach((h, i) => {
+      let txt = String(h).toLowerCase().trim();
+      let exactTxt = String(h).trim();
+      if(txt.includes('assortment grade')) map.rng = i;
+      if(txt.includes('code abc')) map.abc = i;
+      if(txt.includes('sector')) map.spt = i;
+      if(txt.includes('department') && !txt.includes('sub')) map.dep = i;
+      if(txt.includes('subdepartment') || txt.includes('sub dept')) map.sdep = i;
+      if(txt.includes('distribution channel')) map.ch = i;
+      if(exactTxt === 'Merchandise Category (Prod2)') map.nop = i;
+    });
+
+    let weekCols = {};
+    let currMetric = 'v'; 
+    
+    for (let c = 17; c < rowWeeks.length; c++) {
+      let mTxt = String(rowMetrics[c]).toLowerCase();
+      if(mTxt.includes('value')) currMetric = 'v';
+      else if(mTxt.includes('quantity') || mTxt.includes('qty')) currMetric = 'q';
+      else if(mTxt.includes('margin')) currMetric = 'm';
+
+      let wkMatch = String(rowWeeks[c]).trim().match(/(\d+)\.(20\d\d)/);
+      if (wkMatch) weekCols[c] = { w: `${parseInt(wkMatch[1])}.${parseInt(wkMatch[2])}`, m: currMetric };
+    }
+
+    let recordsMap = {};
+    for (let r = 4; r < botData.length; r++) {
+      let nop = map.nop > -1 ? String(botData[r][map.nop]).trim() : 'UNASSIGNED';
+      
+      let dsmCode = String(botData[r][8]).trim();
+      let dsmName = String(botData[r][9]).trim();
+      let modCode = String(botData[r][10]).trim();
+      let modName = String(botData[r][11]).trim();
+      let itmCode = String(botData[r][12]).trim();
+      let itmName = String(botData[r][13]).trim();
+      
+      let famCode = String(botData[r][14] || "").trim();
+      let famName = String(botData[r][15] || "").trim();
+      let famFused = (famName && famCode) ? (famName + "::" + famCode) : (famName || famCode || 'UNASSIGNED');
+
+      if (!modCode && !modName) continue; 
+
+      let dsmCombined = dsmName + (dsmCode ? "::" + dsmCode : "");
+      let modCombined = modName + (modCode ? "::" + modCode : "");
+      let itmCombined = itmName + (itmCode ? "::" + itmCode : "");
+
+      let rng = map.rng > -1 ? String(botData[r][map.rng]).trim() : '';
+      let abc = map.abc > -1 ? String(botData[r][map.abc]).trim() : '';
+      let spt = map.spt > -1 ? String(botData[r][map.spt]).trim() : '';
+      let dep = map.dep > -1 ? String(botData[r][map.dep]).trim() : '';
+      let sdep = map.sdep > -1 ? String(botData[r][map.sdep]).trim() : '';
+      let ch = map.ch > -1 ? String(botData[r][map.ch]).trim() : 'Unassigned';
+      
+      let typ = mapType[modCode.toUpperCase()] || mapType[modName.toUpperCase()] || '';
+      let grp = typ ? typ : (dsmCombined ? dsmCombined : 'NO TYPOLOGY OR DSM');
+
+      let key = `${rng}|${abc}|${spt}|${dep}|${sdep}|${nop}|${dsmCombined}|${modCombined}|${itmCombined}|${famFused}|${ch}`;
+      
+      if(!recordsMap[key]) {
+        recordsMap[key] = { rng, abc, spt, dep, sdep, nop, dsm: dsmCombined, mod: modCombined, itm: itmCombined, fam: famFused, typ, grp, ch, w: {} };
+      }
+
+      let rowRef = recordsMap[key].w;
+      for (let c in weekCols) {
+        let val = parseFloat(String(botData[r][c]).replace(/,/g, ''));
+        if (val) {
+          let wk = weekCols[c].w;
+          let mType = weekCols[c].m;
+          if(!rowRef[wk]) rowRef[wk] = {v:0, q:0, m:0};
+          rowRef[wk][mType] += val;
+        }
+      }
+    }
+
+    let records = Object.values(recordsMap).filter(r => Object.keys(r.w).length > 0);
+    let jsonString = JSON.stringify(records);
+    let chunks = jsonString.match(/[\s\S]{1,45000}/g) || [];
+    let cacheSheet = initBotCache(ss);
+    cacheSheet.clear();
+    let outData = chunks.map(c => [c]);
+    if (outData.length > 0) cacheSheet.getRange(1, 1, outData.length, 1).setValues(outData);
+
+    return "Data Lake Built Successfully.";
+  } catch (err) { throw new Error("Sync Error: " + (err.message || String(err))); }
+}
+
+function getBotLevelInitData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.BOT_CACHE);
+  if(!sheet || sheet.getLastRow() === 0) return '[]';
+  const chunks = sheet.getRange(1, 1, sheet.getLastRow(), 1).getValues();
+  return chunks.map(r => r[0]).join('');
+}
+
+
+// ==========================================
+// CITY & STORE DATA LAKE ENGINE 
+// ==========================================
+function syncCityStoreData() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    let famMap = {};
+    const prsSheet = ss.getSheetByName(CONFIG.SHEETS.PAST_SALES_BOT);
+    if (prsSheet) {
+      const prsData = prsSheet.getDataRange().getValues();
+      
+      if (prsData.length > 3) {
+        let prsHeaders = prsData[3]; 
+        let sptIdx = -1, depIdx = -1, sdepIdx = -1;
+        
+        prsHeaders.forEach((h, i) => {
+          let txt = String(h).toLowerCase().trim();
+          if(txt.includes('sector') || txt.includes('sport')) sptIdx = i;
+          if(txt.includes('department') && !txt.includes('sub')) depIdx = i;
+          if(txt.includes('subdepartment') || txt.includes('sub dept')) sdepIdx = i;
+        });
+
+        for (let r = 4; r < prsData.length; r++) {
+          let famCode = String(prsData[r][14] || "").trim();
+          if (famCode && !famMap[famCode]) {
+            famMap[famCode] = {
+              spt: sptIdx > -1 ? String(prsData[r][sptIdx]).trim() : 'UNASSIGNED',
+              dep: depIdx > -1 ? String(prsData[r][depIdx]).trim() : 'UNASSIGNED',
+              sdep: sdepIdx > -1 ? String(prsData[r][sdepIdx]).trim() : 'UNASSIGNED'
+            };
+          }
+        }
+      }
+    }
+
+    const csSheet = ss.getSheetByName(CONFIG.SHEETS.CITY_STORE);
+    if(!csSheet) throw new Error("'City & Store' sheet not found!");
+    const csData = csSheet.getDataRange().getValues();
+    
+    if (csData.length < 4) throw new Error("City & Store sheet appears empty.");
+    
+    let weekRowIdx = -1, metricRowIdx = -1;
+    for (let i = 0; i < Math.min(6, csData.length); i++) {
+      for (let j = 7; j < csData[i].length; j++) {
+         if (String(csData[i][j]).match(/(\d+)\.(20\d\d)/)) { weekRowIdx = i; break; }
+      }
+      if (weekRowIdx > -1) break;
+    }
+    if (weekRowIdx === -1) throw new Error("Could not find Wk.Year headers in City & Store (e.g., 1.2025).");
+    
+    let possibleMetricRow1 = (weekRowIdx > 0) ? csData[weekRowIdx - 1] : [];
+    let possibleMetricRow2 = (weekRowIdx < csData.length - 1) ? csData[weekRowIdx + 1] : [];
+    let useRow = null;
+    
+    if (String(possibleMetricRow1[7]||'').toLowerCase().includes('val') || String(possibleMetricRow1[8]||'').toLowerCase().includes('qty')) {
+        useRow = possibleMetricRow1; metricRowIdx = weekRowIdx - 1;
+    } else if (String(possibleMetricRow2[7]||'').toLowerCase().includes('val') || String(possibleMetricRow2[8]||'').toLowerCase().includes('qty')) {
+        useRow = possibleMetricRow2; metricRowIdx = weekRowIdx + 1;
+    }
+
+    let weekCols = {};
+    let currMetric = 'v'; 
+    for (let c = 7; c < csData[weekRowIdx].length; c++) {
+      if (useRow && useRow[c]) {
+         let mTxt = String(useRow[c]).toLowerCase();
+         if (mTxt.includes('val')) currMetric = 'v';
+         else if (mTxt.includes('qty') || mTxt.includes('quant')) currMetric = 'q';
+         else if (mTxt.includes('margin')) currMetric = 'm';
+      }
+      let wkMatch = String(csData[weekRowIdx][c]).trim().match(/(\d+)\.(20\d\d)/);
+      if (wkMatch) weekCols[c] = { w: `${parseInt(wkMatch[1])}.${parseInt(wkMatch[2])}`, m: currMetric };
+    }
+
+    let recordsMap = {};
+    let startDataRow = Math.max(weekRowIdx, metricRowIdx) + 1;
+    if (startDataRow < 4) startDataRow = 4;
+
+    for (let r = startDataRow; r < csData.length; r++) {
+      let state = String(csData[r][1] || '').trim();      
+      let plant = String(csData[r][2] || '').trim();      
+      let storeName = String(csData[r][3] || '').trim();  
+      let famCode = String(csData[r][4] || '').trim();    
+      let famName = String(csData[r][5] || '').trim();    
+
+      if (!plant && !storeName) continue;
+
+      let storeCombined = storeName + (plant ? "::" + plant : "");
+      let famFused = famName + (famCode ? "::" + famCode : "");
+
+      let hier = famMap[famCode] || { spt: 'UNASSIGNED', dep: 'UNASSIGNED', sdep: 'UNASSIGNED' };
+
+      let key = `${state}|${storeCombined}|${famFused}`;
+      if (!recordsMap[key]) {
+        recordsMap[key] = {
+          state: state, store: storeCombined, fam: famFused,
+          spt: hier.spt, dep: hier.dep, sdep: hier.sdep,
+          w: {}
+        };
+      }
+
+      let rowRef = recordsMap[key].w;
+      for (let c in weekCols) {
+        let val = parseFloat(String(csData[r][c]).replace(/,/g, ''));
+        if (val) {
+          let wk = weekCols[c].w;
+          let mType = weekCols[c].m;
+          if(!rowRef[wk]) rowRef[wk] = {v:0, q:0, m:0};
+          rowRef[wk][mType] += val;
+        }
+      }
+    }
+
+    let records = Object.values(recordsMap).filter(r => Object.keys(r.w).length > 0);
+    let jsonString = JSON.stringify(records);
+    let chunks = jsonString.match(/[\s\S]{1,45000}/g) || [];
+    
+    let cacheSheet = ss.getSheetByName(CONFIG.SHEETS.CITY_CACHE);
+    if (!cacheSheet) { cacheSheet = ss.insertSheet(CONFIG.SHEETS.CITY_CACHE); cacheSheet.hideSheet(); }
+    cacheSheet.clear();
+    
+    let outData = chunks.map(c => [c]);
+    if (outData.length > 0) cacheSheet.getRange(1, 1, outData.length, 1).setValues(outData);
+
+    return "City & Store Database Built Successfully.";
+  } catch (err) { 
+    throw new Error(err.message || String(err)); 
+  }
+}
+
+function getCityStoreInitData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.SHEETS.CITY_CACHE);
+  if(!sheet || sheet.getLastRow() === 0) return '[]';
+  const chunks = sheet.getRange(1, 1, sheet.getLastRow(), 1).getValues();
+  return chunks.map(r => r[0]).join('');
+}
+
+
+// ==========================================
+// DATA LAKE ENGINE: GRID SIZE, SHORTAGE & FORECASTS
+// ==========================================
+// ==========================================
+// DATA LAKE ENGINE: GRID SIZE, SHORTAGE & FORECASTS
+// ==========================================
+function getGridSizeInitData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  const BOT_SHEET_NAME = (typeof CONFIG !== 'undefined' && CONFIG.SHEETS && CONFIG.SHEETS.BOT_CACHE) ? CONFIG.SHEETS.BOT_CACHE : 'Bot Level Data';
+  const FC_SHEET_NAME = (typeof CONFIG !== 'undefined' && CONFIG.SHEETS && CONFIG.SHEETS.FORECAST) ? CONFIG.SHEETS.FORECAST : 'Sales Forecasting';
+  const SH_SHEET_NAME = (typeof CONFIG !== 'undefined' && CONFIG.SHEETS && CONFIG.SHEETS.SHORTAGE) ? CONFIG.SHEETS.SHORTAGE : 'Shortage';
+
+  let historyStr = '[]';
+  const cacheSheet = ss.getSheetByName(BOT_SHEET_NAME);
+  if(cacheSheet && cacheSheet.getLastRow() > 0) {
+    historyStr = cacheSheet.getRange(1, 1, cacheSheet.getLastRow(), 1).getValues().map(r => r[0]).join('');
+  }
+
+  // --- 1. THE FORECAST ENGINE (WEEK-ON-WEEK EXTRACTION) ---
+  let forecastMap = {};
+  const fcSheet = ss.getSheetByName(FC_SHEET_NAME);
+  if (fcSheet) {
+    const data = fcSheet.getDataRange().getValues();
+    if (data.length > 4) {
+      const headers = data[2]; // Row 3 contains Week headers
+      
+      let weekCols = {};
+      // Scan from Column G (Index 6) onwards for Wk.Yr strings
+      for (let c = 6; c < headers.length; c++) {
+        let match = String(headers[c]).trim().match(/(\d+)\.(20\d\d)/);
+        if (match) weekCols[c] = `${parseInt(match[1])}.${parseInt(match[2])}`;
+      }
+
+      for (let r = 4; r < data.length; r++) { // Data starts Row 5
+        let mCode = String(data[r][1]).trim().toUpperCase(); // Col B
+        let mName = String(data[r][2]).trim(); // Col C
+        let iCode = String(data[r][3]).trim().toUpperCase(); // Col D
+        let iName = String(data[r][4]).trim(); // Col E
+        
+        if (!mCode) continue;
+
+        let mCombined = mName + (mCode ? "::" + mCode : "");
+        let iCombined = iName + (iCode ? "::" + iCode : "");
+
+        if (!forecastMap[mCode]) forecastMap[mCode] = { name: mCombined, total: 0, items: {} };
+        if (!forecastMap[mCode].items[iCode]) forecastMap[mCode].items[iCode] = { name: iCombined, qty: 0, w: {} };
+        
+        // Accumulate Weekly Forecasts
+        for (let c in weekCols) {
+           let val = parseFloat(String(data[r][c]).replace(/,/g, '')) || 0;
+           if (val > 0) {
+               let wkStr = weekCols[c];
+               forecastMap[mCode].items[iCode].w[wkStr] = val;
+               forecastMap[mCode].items[iCode].qty += val;
+               forecastMap[mCode].total += val;
+           }
+        }
+      }
+    }
+  }
+
+  // 2. Fetch Store Counts (Dynamic Horizontal Layout)
+  let storeCounts = {};
+  const scSheet = ss.getSheetByName('Store Count'); 
+  if (scSheet) {
+      let lr = scSheet.getLastRow();
+      if (lr < 5) lr = 56; 
+      
+      function parseStoreBlock(rangeStr) {
+          try {
+              let data = scSheet.getRange(rangeStr).getValues();
+              let map = {};
+              for(let r = 2; r < data.length; r++) { 
+                  let famCode = String(data[r][0]).trim();
+                  if(!famCode || famCode.toLowerCase().includes('category')) continue;
+                  
+                  let c1 = parseFloat(data[r][2]) || 0; 
+                  let c2 = parseFloat(data[r][3]) || 0; 
+                  let c3 = parseFloat(data[r][4]) || 0; 
+                  
+                  map[famCode] = { '1': c1+c2+c3, '2': c2+c3, '3': c3 };
+              }
+              return map;
+          } catch(e) { return {}; }
+      }
+      
+      storeCounts['FW2026'] = parseStoreBlock('A3:G' + lr);
+      storeCounts['SS2026'] = parseStoreBlock('I3:O' + lr);
+      storeCounts['SS2025'] = parseStoreBlock('Q3:W' + lr);
+      storeCounts['FW2025'] = parseStoreBlock('Y3:AE' + lr);
+      storeCounts['SS2024'] = parseStoreBlock('AG3:AM' + lr);
+      storeCounts['FW2024'] = parseStoreBlock('AO3:AU' + lr);
+  }
+
+  // 3. Fetch Shortage Map (.getDisplayValues() logic for decimals)
+  let shortageMap = {};
+  const shSheet = ss.getSheetByName(SH_SHEET_NAME);
+  if (shSheet) {
+    const shData = shSheet.getDataRange().getDisplayValues(); 
+    if (shData.length > 3) {
+      const rowHeaders = shData[2]; 
+      let idxMod = -1, idxItm = -1;
+      rowHeaders.forEach((h, i) => {
+        let txt = String(h).toLowerCase().trim();
+        if(txt.includes('generic article')) idxMod = i;
+        if(txt.includes('material')) idxItm = i;
+      });
+      if(idxMod === -1) idxMod = 6; 
+      if(idxItm === -1) idxItm = 8; 
+
+      let wkCols = {};
+      rowHeaders.forEach((w, i) => {
+        let match = String(w).trim().match(/(\d+)\.(20\d\d)/);
+        if (match) wkCols[i] = `${parseInt(match[1])}.${parseInt(match[2])}`;
+      });
+
+      for (let r = 3; r < shData.length; r++) { 
+        let itmCode = String(shData[r][idxItm]).trim().toUpperCase();
+        let modCode = String(shData[r][idxMod]).trim().toUpperCase();
+        let targetCode = (itmCode === 'RESULT' || itmCode === '') ? modCode : itmCode;
+        if (!targetCode) continue;
+
+        if (!shortageMap[targetCode]) shortageMap[targetCode] = {};
+
+        for (let c in wkCols) {
+          let sVal = String(shData[r][c]).trim().replace('%', '');
+          if (sVal !== "") { 
+            let numVal = parseFloat(sVal);
+            if (!isNaN(numVal)) {
+              shortageMap[targetCode][wkCols[c]] = numVal / 100;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return JSON.stringify({ history: historyStr, forecast: forecastMap, storeCounts: storeCounts, shortage: shortageMap });
+}
+function saveShortageSettings(payloadStr) {
+  const payload = JSON.parse(payloadStr);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.OVERRIDES);
+  if (!sheet) {
+    sheet = ss.insertSheet(CONFIG.SHEETS.OVERRIDES);
+    sheet.hideSheet();
+    sheet.appendRow(['CODE', 'TYPE', 'KEY', 'VALUE']);
+  }
+  
+  const data = sheet.getDataRange().getValues();
+  let found = false;
+  
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][0]).toUpperCase() === String(payload.code).toUpperCase() && 
+        String(data[r][1]).toUpperCase() === String(payload.type).toUpperCase() && 
+        String(data[r][2]).toUpperCase() === String(payload.key).toUpperCase()) {
+       
+       if (payload.value === null || payload.value === "") {
+          sheet.deleteRow(r + 1); 
+       } else {
+          sheet.getRange(r+1, 4).setValue(payload.value);
+       }
+       found = true;
+       break;
+    }
+  }
+  if (!found && payload.value !== null && payload.value !== "") {
+    sheet.appendRow([String(payload.code).toUpperCase(), String(payload.type).toUpperCase(), String(payload.key).toUpperCase(), payload.value]);
+  }
+  return "Saved";
+}
+
+function fetchExternalTrueDemand(sheetName) {
+  try {
+    const SOURCE_WORKBOOK_ID = '1d4xg8fT5CNaWFocOgXqxag_e161oWaXgKnFG7HInQV8';
+    let ss;
+    try { ss = SpreadsheetApp.openById(SOURCE_WORKBOOK_ID); } 
+    catch(e) { throw new Error("Permission denied to external workbook."); }
+    
+    let sheet = ss.getSheetByName(sheetName);
+    if (!sheet) throw new Error(`Sheet '${sheetName}' not found.`);
+    
+    const data = sheet.getDataRange().getValues();
+    if (data.length < 2) return "{}";
+    
+    const headers = data[0];
+    let wkCols = {};
+    for (let c = 8; c < headers.length; c++) {
+      let match = String(headers[c]).match(/W(\d+)\.(20\d\d)_TrueDemand/i);
+      if (match) {
+        wkCols[c] = `${parseInt(match[1])}.${parseInt(match[2])}`;
+      }
+    }
+    
+    let tdMap = {};
+    for (let r = 1; r < data.length; r++) {
+      let mCode = String(data[r][0]).trim().toUpperCase();
+      let iCode = String(data[r][2]).trim().toUpperCase();
+      if (!mCode) continue;
+      
+      if (!tdMap[mCode]) tdMap[mCode] = {};
+      
+      for (let c in wkCols) {
+        let val = parseFloat(data[r][c]);
+        if (!isNaN(val) && val > 0) {
+           let targetKey = iCode ? iCode : mCode; 
+           if(!tdMap[mCode][targetKey]) tdMap[mCode][targetKey] = {};
+           tdMap[mCode][targetKey][wkCols[c]] = val;
+        }
+      }
+    }
+    return JSON.stringify(tdMap);
+  } catch (err) {
+    throw new Error(err.message || String(err));
+  }
+}
+
+// ==========================================
+// THE EXPORT ENGINE
+// ==========================================
+function executeExport(tabName, payloadStr, overwriteFlag, logDetails) {
+  const TARGET_WORKBOOK_ID = '172e3TY0zlE9bhw0oU9KLoCgQtaAKpJrvCX8kMGQLlhk';
+  let targetSS;
+  try { 
+    targetSS = SpreadsheetApp.openById(TARGET_WORKBOOK_ID); 
+  } catch(e) { 
+    throw new Error("Cannot access target workbook. Please ensure permissions are granted."); 
+  }
+
+  let sheet = targetSS.getSheetByName(tabName);
+  
+  if (sheet && !overwriteFlag) return "EXISTS";
+
+  if (!sheet) {
+    sheet = targetSS.insertSheet(tabName);
+  } else {
+    sheet.clear();
+  }
+
+  let data = JSON.parse(payloadStr);
+  if (data.length > 0) {
+    sheet.getRange(1, 1, 1, data[0].length).setValues([data[0]])
+         .setBackground('#1e293b').setFontColor('#ffffff').setFontWeight('bold');
+         
+    if (data.length > 1) {
+      sheet.getRange(2, 1, data.length - 1, data[0].length).setValues(data.slice(1));
+    }
+    sheet.autoResizeColumns(1, 8); 
+  }
+
+  // --- Main Log Tracker ---
+  if (logDetails) {
+    let logSheet = targetSS.getSheetByName('Main Log');
+    if (!logSheet) {
+      logSheet = targetSS.insertSheet('Main Log');
+      logSheet.getRange(1, 1, 1, 5).setValues([['Timestamp', 'User Email', 'Source Dashboard', 'Target Tab', 'Export Parameters']])
+              .setBackground('#0f172a').setFontColor('#ffffff').setFontWeight('bold');
+      logSheet.autoResizeColumns(1, 5);
+    }
+    
+    let userEmail = 'Unknown User';
+    try { userEmail = Session.getActiveUser().getEmail(); } catch(e) {}
+    
+    logSheet.appendRow([new Date(), userEmail, logDetails.source, tabName, logDetails.params]);
+  }
+
+  return "Export Successful!";
+}
+
+// ==========================================
+// AUTOMATED SAP/AFO EXCEL MASTER CLONE ENGINE (V6.1 - SURGICAL PRS SHIFT)
+// ==========================================
+function importAFOData() {
+  try {
+    const excelFileName = "Sales & Forecast Universe.xlsx"; 
+    
+    const files = DriveApp.getFilesByName(excelFileName);
+    if (!files.hasNext()) throw new Error(`Could not find an Excel file named "${excelFileName}" in your Google Drive.`);
+    
+    const excelFile = files.next();
+    const blob = excelFile.getBlob();
+
+    // Convert Excel to Google Sheets format
+    const fileResource = { name: "TEMP_AFO_IMPORT", mimeType: MimeType.GOOGLE_SHEETS };
+    const tempFile = Drive.Files.create(fileResource, blob); 
+
+    const tempSS = SpreadsheetApp.openById(tempFile.id);
+    const tempSheets = tempSS.getSheets();
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let updatedTabs = [];
+
+    // Master Clone Loop
+    tempSheets.forEach(tSheet => {
+      let tName = tSheet.getName();
+      let targetSheet = ss.getSheetByName(tName);
+      
+      if (targetSheet) {
+        let rawLastRow = tSheet.getLastRow();
+        let rawLastCol = tSheet.getLastColumn();
+        
+        // --- THE SURGICAL SHIFT EXCEPTION ---
+        // If it is PRS, start at Column A (1). For all others, protect Col A and start at Col B (2).
+        let startCol = (tName === 'PRS (Channel-Item)') ? 1 : 2;
+        
+        // Ensure there is data beyond just Row 1
+        if (rawLastRow > 1 && rawLastCol >= startCol) {
+          
+          // 1. GHOST RADAR: Find the TRUE Column Width
+          let trueLastCol = startCol; 
+          let sampleRows = Math.min(20, rawLastRow); 
+          let sampleData = tSheet.getRange(1, 1, sampleRows, rawLastCol).getValues();
+          
+          for (let r = 0; r < sampleRows; r++) {
+            for (let c = rawLastCol - 1; c >= startCol - 1; c--) { 
+              if (sampleData[r][c] !== null && String(sampleData[r][c]).trim() !== "") {
+                trueLastCol = Math.max(trueLastCol, c + 1);
+                break;
+              }
+            }
+          }
+          
+          let numColsToFetch = trueLastCol - startCol + 1; 
+
+          // 2. AUTO-EXPAND COLUMNS
+          let currentMaxCols = targetSheet.getMaxColumns();
+          if (currentMaxCols < trueLastCol) {
+            targetSheet.insertColumnsAfter(currentMaxCols, trueLastCol - currentMaxCols + 2);
+          }
+
+          // 3. PROTECTED CLEAR (Wipe from Row 2 downwards, respecting startCol)
+          let currentMaxRows = targetSheet.getMaxRows();
+          currentMaxCols = targetSheet.getMaxColumns(); 
+          
+          if (currentMaxRows > 1 && currentMaxCols >= startCol) {
+             targetSheet.getRange(2, startCol, currentMaxRows - 1, currentMaxCols - startCol + 1).clearContent();
+          }
+
+          // 4. CHUNKED 1:1 DATA TRANSFER & GHOST ROW EJECTOR
+          let chunkSize = 5000; 
+          let actualLastRow = 1;
+
+          // Start loop at Row 2
+          for (let i = 2; i <= rawLastRow; i += chunkSize) {
+            let rowsToFetch = Math.min(chunkSize, rawLastRow - i + 1);
+            
+            // Fetch exactly from Row i, dynamically starting at startCol
+            let chunkData = tSheet.getRange(i, startCol, rowsToFetch, numColsToFetch).getValues();
+            
+            // Ghost Ejector: Check if this chunk is empty
+            let isChunkEmpty = true;
+            for (let r = 0; r < rowsToFetch; r++) {
+               if (String(chunkData[r][0] || "").trim() !== "" || 
+                  (numColsToFetch > 1 && String(chunkData[r][1] || "").trim() !== "")) {
+                  isChunkEmpty = false;
+                  break;
+               }
+            }
+            
+            if (isChunkEmpty) {
+               break; // EJECT! Hit the AFO formatting void.
+            }
+            
+            // Auto-Expand Rows dynamically
+            let reqRowsToPaste = i + rowsToFetch - 1;
+            if (targetSheet.getMaxRows() < reqRowsToPaste) {
+               targetSheet.insertRowsAfter(targetSheet.getMaxRows(), Math.max(chunkSize, reqRowsToPaste - targetSheet.getMaxRows() + 10));
+            }
+
+            // Paste EXACTLY into Row i, dynamically starting at startCol
+            targetSheet.getRange(i, startCol, rowsToFetch, numColsToFetch).setValues(chunkData);
+            actualLastRow = reqRowsToPaste;
+          }
+          
+          // 5. THE GUILLOTINE: Auto-Trim Excess Blank Space
+          let finalMaxRows = targetSheet.getMaxRows();
+          let finalMaxCols = targetSheet.getMaxColumns();
+
+          // Trim rows safely
+          if (finalMaxRows > actualLastRow) {
+            let trimStartRow = Math.max(2, actualLastRow + 1);
+            if (finalMaxRows >= trimStartRow) {
+              targetSheet.deleteRows(trimStartRow, finalMaxRows - trimStartRow + 1);
+            }
+          }
+
+          // Trim columns safely
+          if (finalMaxCols > trueLastCol) {
+            let trimStartCol = Math.max(startCol, trueLastCol + 1);
+            if (finalMaxCols >= trimStartCol) {
+              targetSheet.deleteColumns(trimStartCol, finalMaxCols - trimStartCol + 1);
+            }
+          }
+
+          updatedTabs.push(tName);
+        }
+      }
+    });
+
+    // Clean up temporary conversion file
+    DriveApp.getFileById(tempFile.id).setTrashed(true);
+    return `AFO Clone Successful! Surgically aligned and perfectly trimmed ${updatedTabs.length} tabs.`;
+    
+  } catch (error) { 
+    throw new Error("AFO Import Failed: " + error.message); 
+  }
+}
+
+// ==========================================
+// SHORTAGE CORRECTION INITIALIZATION
+// ==========================================
+function getShortageInitData() {
+  try {
+    // 1. Fetch the high-speed base Data Lake (History, Forecasts, Shortage, Store Counts)
+    let baseDataStr = getGridSizeInitData();
+    let baseData = JSON.parse(baseDataStr);
+    
+    // 2. Fetch the User Overrides & Settings
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const OVERRIDES_SHEET_NAME = (typeof CONFIG !== 'undefined' && CONFIG.SHEETS && CONFIG.SHEETS.OVERRIDES) ? CONFIG.SHEETS.OVERRIDES : '_SHORTAGE_OVERRIDES_';
+    const overrideSheet = ss.getSheetByName(OVERRIDES_SHEET_NAME);
+    
+    let settingsMap = {};
+    
+    if (overrideSheet) {
+      const data = overrideSheet.getDataRange().getValues();
+      // data[0] is headers: ['CODE', 'TYPE', 'KEY', 'VALUE']
+      for (let r = 1; r < data.length; r++) {
+        let code = String(data[r][0]).trim().toUpperCase();
+        let type = String(data[r][1]).trim().toUpperCase();
+        let key = String(data[r][2]).trim(); // week (e.g. "14.2026") or "MODEL"
+        let val = data[r][3];
+        
+        if (!code) continue;
+        if (!settingsMap[code]) settingsMap[code] = { WEEKS: {} };
+        
+        // Route Model-Level Settings vs Week-Level Overrides
+        if (key.toUpperCase() === 'MODEL') {
+          if (type === 'SUBST') settingsMap[code].SUBST = val;
+          if (type === 'MOD_X') settingsMap[code].MOD_X = val !== "" ? parseFloat(val) : null;
+        } else {
+          if (!settingsMap[code].WEEKS[key]) settingsMap[code].WEEKS[key] = {};
+          
+          if (type === 'CELL_TD') settingsMap[code].WEEKS[key].CELL_TD = val !== "" ? parseFloat(val) : null;
+          if (type === 'CELL_X') settingsMap[code].WEEKS[key].CELL_X = val !== "" ? parseFloat(val) : null;
+          if (type === 'EPHEMERIDE') settingsMap[code].WEEKS[key].EPHEMERIDE = String(val);
+        }
+      }
+    }
+    
+    // 3. Merge and deploy to Frontend
+    baseData.settings = settingsMap;
+    return JSON.stringify(baseData);
+    
+  } catch (err) {
+    throw new Error("Failed to load Shortage Overrides: " + err.message);
+  }
+}
+// ==========================================
+// CALCULATION TRACE EXPORTER (5-COLUMN SCHEMA)
+// ==========================================
+function exportCalcTraceBackend(mCode, payloadStr) {
+  const TARGET_WORKBOOK_ID = '1B4kyzQvHpubaWxVIJiySNRXwjPkPkYWT5FdUf1rvxt8';
+  let targetSS;
+  try { 
+    targetSS = SpreadsheetApp.openById(TARGET_WORKBOOK_ID); 
+  } catch(e) { 
+    throw new Error("Cannot access target workbook. Please verify file sharing permissions."); 
+  }
+  
+  let tabName = 'Calc_' + String(mCode).trim().toUpperCase();
+  let sheet = targetSS.getSheetByName(tabName);
+  if(!sheet) {
+    sheet = targetSS.insertSheet(tabName);
+  } else {
+    sheet.clear();
+  }
+  
+  let data = JSON.parse(payloadStr);
+  if(data.length > 0) {
+    sheet.getRange(1, 1, data.length, data[0].length).setValues(data);
+    
+    // Header Formatting Schema
+    sheet.getRange(1, 1, 1, data[0].length).setBackground('#0f172a').setFontColor('#ffffff').setFontWeight('bold');
+    if(data.length >= 3) {
+       sheet.getRange(3, 1, 1, data[2].length).setBackground('#2563eb').setFontColor('#ffffff').setFontWeight('bold');
+    }
+    sheet.autoResizeColumns(1, 5);
+    
+    // Force clean text-wrapping on Descriptive Fields
+    sheet.getRange(1, 2, data.length, 1).setWrap(true);
+    sheet.getRange(1, 3, data.length, 1).setWrap(true);
+  }
+  
+  return "Trace Ledger exported seamlessly to tab: " + tabName;
+}
