@@ -1,0 +1,1843 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg-color: #f3f4f6; --header-bg: #3043A6; --header-text: #f8fafc; --border-color: #e5e7eb; --row-alt: #fbfbfc; --accent: #38bdf8; }
+    body { font-family: 'Inter', sans-serif; background-color: var(--bg-color); margin: 0; padding: 20px; color: #333; }
+    
+    .app-nav { background: var(--header-bg); padding: 0 20px; display: flex; align-items: center; margin-bottom: 15px; border-radius: 8px; }
+    .nav-brand { color: white; font-weight: 700; font-size: 1.2rem; margin-right: 30px; }
+    .nav-links { display: flex; gap: 10px; }
+    .nav-btn { background: transparent; color: #cbd5e1; border: none; padding: 15px 20px; font-weight: 600; cursor: pointer; transition: 0.2s; font-size: 0.95rem; }
+    .nav-btn:hover { color: white; background: #e2e8f0; color: #0f172a;}
+    .nav-btn.active { color: #f8fafc; border-bottom: 3px solid #60a5fa; background: #24327d;}
+    
+    .btn { padding: 10px 18px; border-radius: 8px; font-weight: 600; border: none; cursor: pointer; color: white; margin-left: 10px; transition: 0.2s;}
+    .btn-sync { background-color: #2563eb; } .btn-sync:hover { background-color: #1d4ed8; }
+    .btn-reset { background-color: #64748b; font-size: 0.8rem; padding: 8px 12px;} .btn-reset:hover { background-color: #475569; }
+    .btn-export { background-color: #8b5cf6; } .btn-export:hover { background-color: #7c3aed; }
+    .btn-afo { background-color: #0f766e; } .btn-afo:hover { background-color: #0f5c56; }
+    .btn-insight { background-color: #f59e0b; color: #fff; } .btn-insight:hover { background-color: #d97706; }
+    .btn-trace { background-color: #0891b2; font-size: 0.8rem; padding: 8px 12px;} .btn-trace:hover { background-color: #0e7490;}
+    
+    .macro-bar { display: flex; justify-content: space-between; margin-bottom: 15px; align-items: center;}
+    .global-search { width: 300px; padding: 10px 15px; border-radius: 8px; border: 1px solid #cbd5e1; font-family: Inter; font-size: 0.9rem; outline: none; }
+    .global-search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #e0f2fe; }
+
+    /* Smart Insights Grid Wrapper */
+    .insights-panel { display: none; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+    .insights-panel.active { display: block; animation: fadeIn 0.3s ease-in-out; }
+    .insights-header { font-size: 1.1rem; font-weight: 700; color: #1e293b; margin-bottom: 15px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
+    .insights-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+    .insight-card { background: #fff; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 4px solid #64748b; }
+    .insight-title { font-size: 0.85rem; font-weight: 700; color: #334155; text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 4px; }
+    .insight-text { font-size: 0.85rem; color: #475569; line-height: 1.5; }
+    .insight-row-item { display: flex; justify-content: space-between; font-size: 0.8rem; padding: 4px 0; border-bottom: 1px solid #f1f5f9; }
+    .insight-row-item:last-child { border-bottom: none; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+
+    .filters-wrapper { background: #fff; padding: 15px; border-radius: 12px; border: 1px solid var(--border-color); margin-bottom: 20px; }
+    .filters-grid { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 15px; }
+    .filter-group { display: flex; flex-direction: column; gap: 4px; flex: 1 1 11%; min-width: 140px; position: relative; }
+    .filter-group label { font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+    
+    .custom-select-btn { padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; font-size: 0.8rem; cursor: pointer; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; user-select: none;}
+    .custom-select-btn:hover { border-color: #94a3b8; }
+    .custom-select-panel { display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 100; margin-top: 4px; padding: 8px; max-height: 250px; overflow-y: auto; }
+    .custom-select-panel.active { display: block; }
+    .custom-search { width: 100%; padding: 6px; border: 1px solid #e2e8f0; border-radius: 4px; margin-bottom: 8px; font-size: 0.8rem; box-sizing: border-box; outline:none; }
+    .custom-search:focus { border-color:#38bdf8; }
+    .checkbox-item { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; padding: 4px 0; cursor: pointer; color: #1e293b;}
+    .checkbox-item input { margin: 0; cursor: pointer; }
+    
+    .native-select, .native-input { padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-family: Inter; font-size: 0.85rem; outline: none; background: #fff; cursor: pointer; }
+    .native-input { width: 55px; text-align: center; font-weight: 600; }
+    .controls-row { display: flex; gap: 15px; align-items: flex-end; padding-top: 15px; border-top: 2px dashed #e2e8f0; flex-wrap: wrap; }
+    
+    /* Baseline Table UI Configuration */
+    .table-wrapper { background-color: #fff; border-radius: 12px; border: 1px solid var(--border-color); overflow-x: auto; max-height: 55vh; position: relative; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; }
+    .loading-msg { text-align: center; padding: 50px; font-weight: bold; color: #64748b; }
+    
+    .bot-grid th, .bot-grid td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; text-align: right; font-size: 0.85rem; vertical-align: middle; box-sizing: border-box; background-color: #ffffff; }
+    
+    .bot-grid th { position: sticky; background-color: var(--header-bg) !important; color: var(--header-text); font-weight: 600; text-align: center; white-space: nowrap; border-top: 1px solid #cbd5e1; z-index: 20; }
+    .sortable-header { cursor: pointer; user-select: none; transition: background 0.2s; }
+    .sortable-header:hover { background-color: #24327d !important; }
+    
+    .bot-grid thead tr:first-child th { top: 0; z-index: 30; height: 35px; }
+    .bot-grid thead tr:nth-child(2) th { top: 35px; z-index: 30; height: 35px; font-size: 0.8rem; background-color: #24327d !important; border-top: 1px solid #4a5fc1; }
+    
+    .bot-grid th:first-child, .bot-grid td:first-child { position: sticky; left: 0; z-index: 45; background-color: #f8fafc !important; text-align: left; font-weight: 600; min-width: 320px; max-width: 500px; border-left: 1px solid #cbd5e1; border-right: 2px solid #cbd5e1 !important; }
+    .bot-grid th:not(:first-child), .bot-grid td:not(:first-child) { min-width: 160px; }
+    
+    .bot-grid thead tr:first-child th:first-child { z-index: 60; background-color: var(--header-bg) !important; border-bottom: 1px solid #24327d; }
+    .bot-grid thead tr:nth-child(2) th:first-child { z-index: 60; background-color: #24327d !important; border-bottom: 2px solid #cbd5e1; }
+    
+    .row-total td { position: sticky; top: 70px; z-index: 38; background-color: #e2e8f0 !important; font-weight: 800 !important; color: #0f172a; border-top: 3px solid #94a3b8; border-bottom: 3px solid #94a3b8; box-shadow: 0 4px 6px -4px rgba(0,0,0,0.2); }
+    .row-total td:first-child { z-index: 55 !important; background-color: #e2e8f0 !important; }
+    
+    .col-divider { border-right: 2px solid #cbd5e1 !important; }
+    tr:nth-child(even) td { background-color: var(--row-alt); }
+    tr:nth-child(even) td:first-child { background-color: #f1f5f9 !important; }
+
+    .expand-btn { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; cursor: pointer; color: #2563eb; font-weight: 800; font-size: 1rem; user-select: none; background:#eff6ff; border-radius:4px; margin-right:8px; border: 1px solid #bfdbfe; transition: 0.1s; flex-shrink: 0;}
+    .expand-btn:hover { color: #1d4ed8; background:#dbeafe; transform: scale(1.05);}
+    .level-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: #94a3b8; margin-right: 14px; margin-left: 6px; flex-shrink: 0;}
+    .pct-badge { color: #94a3b8; font-size: 0.75rem; font-weight: 700; margin-left: 8px; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; border: 1px solid #e2e8f0; white-space: nowrap; flex-shrink: 0;}
+
+    /* Export Modal Elements */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.7); display: none; align-items: center; justify-content: center; z-index: 9999; backdrop-filter: blur(4px); }
+    .modal-content { background: #fff; border-radius: 12px; width: 550px; padding: 25px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+    .modal-header { font-size: 1.2rem; font-weight: 700; color: #0f172a; margin-bottom: 20px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; }
+    .modal-row { margin-bottom: 15px; }
+    .modal-row label { display: block; font-size: 0.8rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 6px; text-transform: uppercase; }
+    .checkbox-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px; }
+  </style>
+</head>
+<body>
+
+  <div class="app-nav">
+    <div class="nav-brand">Sales & Forecast Universe</div>
+    <div class="nav-links">
+      <button class="nav-btn" onclick="window.top.location.href='{{APP_URL}}?page=Piloting'">Macro Piloting</button>
+      <button class="nav-btn active" onclick="window.top.location.href='{{APP_URL}}?page=ModelSummary'">Model Summary</button>
+      <button class="nav-btn" onclick="window.top.location.href='{{APP_URL}}?page=CityStore'">City & Store</button>
+      <button class="nav-btn" onclick="window.top.location.href='{{APP_URL}}?page=GridSize'">Grid Size</button>
+      <button class="nav-btn" onclick="window.top.location.href='{{APP_URL}}?page=ShortageCorrection'">Shortage Correction</button>
+    </div>
+  </div>
+
+  <div class="macro-bar">
+    <div>
+      <input type="text" id="global-search" class="global-search" placeholder="🔍 Search by Code, Name, Typology..." onkeyup="handleSearchDebounce()">
+    </div>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <button class="btn btn-insight" onclick="toggleInsights()">💡 Smart Insights</button>
+      <button class="btn btn-afo" id="btn-afo" onclick="triggerAFOSync()">📥 Rewrite Source Data</button>
+      <button class="btn btn-trace" id="btn-calc-export" onclick="promptCalcTraceExport()">🧮 Trace PWPS Math</button>
+      <button class="btn btn-export" onclick="window.openExportModal()">📤 Custom Export</button>
+      <button class="btn btn-reset" onclick="resetAllFilters()">🗑 Reset Filters</button>
+      <button class="btn btn-sync" id="btn-sync" onclick="triggerServerSync()">🔄 Refresh</button>
+    </div>
+  </div>
+
+  <div class="insights-panel" id="insights-panel">
+    <div class="insights-header">💡 Automated Analysis & Growth Signals</div>
+    <div class="insights-grid" id="insights-container"></div>
+  </div>
+
+  <div class="filters-wrapper">
+    <div class="filters-grid" id="custom-filters-container"></div>
+    <div class="controls-row">
+      <div class="filter-group">
+        <label>Display View</label>
+        <select id="ctrl-group" class="native-select" onchange="renderTable()" style="border-color:#38bdf8; font-weight:600; background-color:#f0f9ff; color:#0369a1;">
+          <option value="tree">Hierarchy View</option>
+          <option value="spt">Sport</option>
+          <option value="dep">Department</option>
+          <option value="sdep">SubDepartment</option>
+          <option value="fam">Family</option>
+          <option value="typ">Typology</option>
+          <option value="dsm">DSM</option>
+          <option value="mod">Model</option>
+          <option value="nop">NOP</option>
+          <option value="abc">Code ABC</option>
+          <option value="rng">Range</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Metric Display</label>
+        <select id="ctrl-metric" class="native-select" onchange="renderTable()" style="font-weight:600;">
+          <option value="v">Sales Value</option>
+          <option value="q">Sales Quantity</option>
+          <option value="m">% Sales Margin</option>
+          <option value="p" style="color:#0f766e; font-weight:700;">Sales Potential (PWPS)</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Aggregation</label>
+        <select id="ctrl-agg" class="native-select" onchange="renderTable()">
+          <option value="sum">Summation</option>
+          <option value="avg">Average (AWS)</option>
+        </select>
+      </div>
+      
+      <div class="filter-group">
+        <label>Range Ref Year</label>
+        <select id="ctrl-range-year" class="native-select" onchange="recomputeTrueRanges()" style="border-color:#eab308; background-color:#fefce8; color:#a16207; font-weight:600;">
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Display Limit (Overall)</label>
+        <div style="display:flex; align-items:center; gap: 8px;">
+          <select id="ctrl-limit-mode" class="native-select" onchange="renderTable()" style="width:90px;">
+            <option value="all">All Data</option>
+            <option value="top">Top</option>
+            <option value="bot">Bottom</option>
+          </select>
+          <input type="number" id="ctrl-limit-n" min="1" value="10" onchange="renderTable()" class="native-input">
+        </div>
+      </div>
+      
+      <div class="filter-group">
+        <label>Price Range (ASP)</label>
+        <div style="display:flex; align-items:center; gap: 4px;">
+          <input type="number" id="f-min-price" placeholder="Min ₹" onchange="triggerYTDRebuild()" class="native-input" style="width:55px;">
+          <span style="font-weight:700; color:#64748b; font-size:0.8rem;">-</span>
+          <input type="number" id="f-max-price" placeholder="Max ₹" onchange="triggerYTDRebuild()" class="native-input" style="width:55px;">
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label>YTD Week Range (Ctrl+Y)</label>
+        <div style="display:flex; align-items:center; gap: 8px;">
+          <input type="number" id="f-start" min="1" max="53" value="1" onchange="triggerYTDRebuild()" class="native-input">
+          <span style="font-weight:700; color:#64748b; font-size:0.8rem;">TO</span>
+          <input type="number" id="f-end" min="1" max="53" value="20" onchange="triggerYTDRebuild()" class="native-input">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-wrapper" onclick="closeAllPanels(event)">
+    <table id="bot-table" class="bot-grid">
+      <thead id="bot-head"></thead>
+      <tbody id="bot-body">
+        <tr><td class="loading-msg" colspan="17">Fetching Model Data Lake...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div id="export-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">📤 Generate Custom Export</div>
+      <div class="modal-row">
+        <label>1. Target Tab Name (in External Excel Workbook)</label>
+        <input type="text" id="exp-tab-name" class="native-select" style="width:100%; border:1px solid #94a3b8;" placeholder="e.g. Q3_Model_Dump">
+      </div>
+      <div style="display:flex; gap:15px;" class="modal-row">
+        <div style="flex:1;">
+          <label>2. Export Level</label>
+          <select id="exp-level" class="native-select" style="width:100%;">
+            <option value="spt">Sport</option>
+            <option value="dep">Department</option>
+            <option value="sdep">SubDepartment</option>
+            <option value="fam">Family</option>
+            <option value="typ">Typology</option>
+            <option value="dsm">DSM</option>
+            <option value="mod">Model</option>
+            <option value="itm">Item</option>
+          </select>
+        </div>
+        <div style="flex:1;">
+          <label>3. Target Year</label>
+          <select id="exp-year" class="native-select" style="width:100%;">
+          </select>
+        </div>
+      </div>
+      <div class="modal-row">
+        <label>4. Data Depth</label>
+        <div style="display:flex; gap:15px; margin-top:5px;">
+          <label class="checkbox-item"><input type="radio" name="exp-depth" value="overall" checked> Total (Selected Weeks)</label>
+          <label class="checkbox-item"><input type="radio" name="exp-depth" value="wow"> Week-on-Week Breakdown</label>
+        </div>
+      </div>
+      <div class="modal-row">
+        <label>5. Layout Configuration</label>
+        <div style="display:flex; gap:15px; margin-top:5px;">
+          <label class="checkbox-item"><input type="checkbox" id="exp-channel-split"> Include Channel Split (Option A Layout)</label>
+        </div>
+      </div>
+      <div class="modal-row">
+        <label>6. Metrics to Include</label>
+        <div class="checkbox-grid">
+          <label class="checkbox-item"><input type="checkbox" id="exp-m-v" checked> Sales Value</label>
+          <label class="checkbox-item"><input type="checkbox" id="exp-m-q" checked> Sales Quantity</label>
+          <label class="checkbox-item"><input type="checkbox" id="exp-m-asp"> ASP (Average Selling Price)</label>
+          <label class="checkbox-item"><input type="checkbox" id="exp-m-mabs"> Absolute Margin Value</label>
+          <label class="checkbox-item"><input type="checkbox" id="exp-m-mpct"> Margin %</label>
+          <label class="checkbox-item"><input type="checkbox" id="exp-m-pwps"> Sales Potential (PWPS)</label>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-reset" onclick="window.closeExportModal()">Cancel</button>
+        <button class="btn btn-export" id="btn-run-export" onclick="runExportEngine()">🚀 Push to Excel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allData = [];
+    let cachedYTD = []; 
+    let filteredData = [];
+    let activeForecastMap = {};
+    let activeForecastModels = new Set();
+    let globalStoreCounts = {}; 
+    let globalShortageMap = {}; 
+    let globalItemPWPS = {}; 
+    let globalItemShortage = {}; 
+    let maxYear = 2026;
+    let currentISOWeek = 1;
+    let targetChannels = ['SALE TO CUSTOMERS', 'Sales with Others', 'External Marketplace', 'Internet'];
+    let expandedNodes = new Set();
+    
+    let itemRangeMap = {}; 
+    let modelRangeMap = {}; 
+    let modelMinWkMap = {}; 
+    
+    let itemYTD = {};
+
+    let sortCol = 'NAME'; 
+    let sortDir = 'asc';
+    let searchDebounceTimeout;
+
+    function encodeSafeId(str) { return btoa(unescape(encodeURIComponent(String(str)))); }
+    function decodeSafeId(str) { return decodeURIComponent(escape(atob(String(str)))); }
+
+    document.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        let input = document.getElementById('f-start');
+        input.focus(); input.select();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        let sb = document.getElementById('global-search');
+        sb.focus(); sb.select();
+      }
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.filter-group')) {
+            closeAllPanels();
+        }
+    });
+
+    const filterDefs = [
+      { id: 'rng', label: 'Range' }, { id: 'abc', label: 'Code ABC' },
+      { id: 'spt', label: 'Sport' }, { id: 'dep', label: 'Department' },
+      { id: 'sdep', label: 'SubDept' }, { id: 'nop', label: 'NOP' },
+      { id: 'dsm', label: 'DSM' }, { id: 'fam', label: 'Family' }, { id: 'mod', label: 'Model' }
+    ];
+    let selectedFilters = { rng:[], abc:[], spt:[], dep:[], sdep:[], nop:[], dsm:[], fam:[], mod:[] };
+    let activePanelId = null;
+
+    function getISOWeek() {
+      let date = new Date();
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+      let week1 = new Date(date.getFullYear(), 0, 4);
+      return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+    }
+
+    window.onload = function() {
+      currentISOWeek = getISOWeek();
+      let defaultWk = currentISOWeek - 1;
+      if (defaultWk < 1) defaultWk = 1; if (defaultWk > 53) defaultWk = 53;
+      document.getElementById('f-end').value = defaultWk;
+
+      google.script.run.withSuccessHandler(initDashboard)
+        .withFailureHandler(e => document.getElementById('bot-body').innerHTML = `<tr><td style="color:red;">Error: ${e.message}</td></tr>`)
+        .getGridSizeInitData();
+    };
+
+    function triggerAFOSync() {
+      const btn = document.getElementById('btn-afo');
+      btn.disabled = true; btn.textContent = '⏳ Writing...';
+      google.script.run.withSuccessHandler(res => {
+        btn.textContent = '✅ Done! Rebuilding...'; triggerServerSync(); 
+      }).withFailureHandler(err => {
+        btn.disabled = false; btn.textContent = '📥 Rewrite Source Data'; alert("Sync Error: " + err.message);
+      }).importAFOData();
+    }
+
+    function triggerServerSync() {
+      const btn = document.getElementById('btn-sync');
+      btn.disabled = true; btn.textContent = '⏳ Compressing...';
+      google.script.run.withSuccessHandler(res => {
+        alert("Sync Complete!"); window.location.reload();
+      }).withFailureHandler(err => {
+        btn.disabled = false; btn.textContent = '🔄 Refresh Source Data'; alert(err.message);
+      }).syncBotLevelData();
+    }
+
+    function initDashboard(payloadStr) {
+      let payload = JSON.parse(payloadStr);
+      allData = JSON.parse(payload.history || '[]');
+      globalStoreCounts = payload.storeCounts || {}; 
+      globalShortageMap = payload.shortage || {}; 
+      activeForecastMap = payload.forecast || {};
+
+      if(allData.length === 0) {
+        document.getElementById('bot-body').innerHTML = `<tr><td class="loading-msg" colspan="17">Cache Empty. Please click "Refresh Source Data".</td></tr>`;
+        return;
+      }
+      
+      let yearSet = new Set();
+      allData.forEach(r => Object.keys(r.w).forEach(k => yearSet.add(parseInt(k.split('.')[1]))));
+      let yrs = Array.from(yearSet).sort();
+      maxYear = yrs.length > 0 ? yrs[yrs.length - 1] : 2026;
+      
+      let expYearSelect = document.getElementById('exp-year');
+      let rangeYearSelect = document.getElementById('ctrl-range-year');
+      expYearSelect.innerHTML = ''; rangeYearSelect.innerHTML = '';
+      yrs.reverse().forEach(y => {
+         expYearSelect.innerHTML += `<option value="${y}">${y}</option>`;
+         rangeYearSelect.innerHTML += `<option value="${y}">${y}</option>`;
+      });
+
+      let existingItems = new Set();
+      let itemHist = {};
+      let modelHierarchies = {};
+
+      allData.forEach(r => {
+          let mCode = (r.mod && String(r.mod).includes('::')) ? String(r.mod).split('::')[1].trim().toUpperCase() : String(r.mod || '').trim().toUpperCase();
+          let iCode = (r.itm && String(r.itm).includes('::')) ? String(r.itm).split('::')[1].trim().toUpperCase() : String(r.itm || '').trim().toUpperCase();
+          if(!iCode) iCode = mCode;
+          existingItems.add(iCode);
+
+          if(!itemHist[iCode]) {
+              itemHist[iCode] = { q:0, v:0, m:0, rawMod: r.mod, rawItm: r.itm, hier: { spt: r.spt, dep: r.dep, sdep: r.sdep, nop: r.nop, dsm: r.dsm, fam: r.fam, typ: r.typ, rng: r.rng, abc: r.abc } };
+          }
+
+          for(let w = 1; w < currentISOWeek; w++) {
+              let wkStr = `${w}.${maxYear}`;
+              if (r.w[wkStr]) {
+                  itemHist[iCode].q += (r.w[wkStr].q || 0);
+                  itemHist[iCode].v += (r.w[wkStr].v || 0);
+                  itemHist[iCode].m += (r.w[wkStr].m || 0);
+              }
+          }
+          if(mCode && !modelHierarchies[mCode]) {
+              modelHierarchies[mCode] = itemHist[iCode].hier;
+              modelHierarchies[mCode].rawMod = r.mod;
+          }
+      });
+
+      Object.keys(activeForecastMap).forEach(mCode => {
+          activeForecastModels.add(mCode);
+          Object.keys(activeForecastMap[mCode].items).forEach(iCode => {
+              let hier = (itemHist[iCode] && itemHist[iCode].hier) ? itemHist[iCode].hier : (modelHierarchies[mCode] || { spt: 'UNASSIGNED', dep: 'UNASSIGNED', sdep: 'UNASSIGNED', nop: 'UNASSIGNED', dsm: activeForecastMap[mCode].name, fam: 'UNASSIGNED', typ: '', rng: '', abc: '' });
+
+              let rawMod = (itemHist[iCode] && itemHist[iCode].rawMod) ? itemHist[iCode].rawMod : (modelHierarchies[mCode] && modelHierarchies[mCode].rawMod ? modelHierarchies[mCode].rawMod : (activeForecastMap[mCode].name ? `${activeForecastMap[mCode].name} :: ${mCode}` : mCode));
+              let rawItm = (itemHist[iCode] && itemHist[iCode].rawItm) ? itemHist[iCode].rawItm : (activeForecastMap[mCode].items[iCode].name ? `${activeForecastMap[mCode].items[iCode].name} :: ${iCode}` : iCode);
+
+              let asp = (itemHist[iCode] && itemHist[iCode].q > 0) ? (itemHist[iCode].v / itemHist[iCode].q) : 0;
+              let mPct = (itemHist[iCode] && itemHist[iCode].v > 0) ? (itemHist[iCode].m / itemHist[iCode].v) : 0;
+
+              let fcRow = {
+                  rng: hier.rng, abc: hier.abc, spt: hier.spt, dep: hier.dep, sdep: hier.sdep, nop: hier.nop,
+                  dsm: hier.dsm, mod: String(rawMod), itm: String(rawItm),
+                  fam: hier.fam, typ: hier.typ, grp: hier.typ || hier.dsm, ch: 'FORECAST_DUMMY', w: {}
+              };
+
+              let hasFc = false;
+              Object.keys(activeForecastMap[mCode].items[iCode].w).forEach(wkStr => {
+                  let wkNum = parseInt(wkStr.split('.')[0]);
+                  let wkYear = parseInt(wkStr.split('.')[1]);
+                  if (wkYear === maxYear && wkNum >= currentISOWeek) {
+                      let fcQ = activeForecastMap[mCode].items[iCode].w[wkStr] || 0;
+                      if (fcQ > 0) {
+                          fcRow.w[wkStr] = { q: fcQ, v: fcQ * asp, m: fcQ * asp * mPct };
+                          hasFc = true;
+                      }
+                  }
+              });
+
+              if (hasFc) allData.push(fcRow);
+
+              if (!existingItems.has(iCode)) {
+                  let dummyRow = {...fcRow, ch: 'SALE TO CUSTOMERS', w: {}};
+                  allData.push(dummyRow);
+                  existingItems.add(iCode);
+              }
+          });
+      });
+
+      recomputeTrueRanges(); 
+    }
+
+    function recomputeTrueRanges() {
+      let refYear = parseInt(document.getElementById('ctrl-range-year').value) || maxYear;
+      let itemRanges = {}; 
+      itemRangeMap = {}; 
+      
+      allData.forEach(r => {
+          let mCode = (r.mod && String(r.mod).includes('::')) ? String(r.mod).split('::')[1].trim().toUpperCase() : String(r.mod || '').trim().toUpperCase();
+          let iCode = (r.itm && String(r.itm).includes('::')) ? String(r.itm).split('::')[1].trim().toUpperCase() : String(r.itm || '').trim().toUpperCase();
+          if (!iCode) iCode = mCode || 'UNK';
+          if (!mCode) return;
+
+          if (!itemRanges[iCode]) { itemRanges[iCode] = { mCode: mCode, counts: {}, maxWk: -1, lastRng: '', activeWeeksSet: new Set() }; }
+          for (let w = 1; w <= 53; w++) {
+              let k = `${w}.${refYear}`;
+              if (r.w[k] && (r.w[k].q > 0 || r.w[k].v !== 0)) {
+                  itemRanges[iCode].activeWeeksSet.add(w); 
+                  let rng = String(r.rng || '').trim();
+                  if (rng) {
+                      itemRanges[iCode].counts[rng] = (itemRanges[iCode].counts[rng] || 0) + 1;
+                      if (w > itemRanges[iCode].maxWk) { itemRanges[iCode].maxWk = w; itemRanges[iCode].lastRng = rng; }
+                  }
+              }
+          }
+      });
+
+      let resolvedItems = {};
+      Object.keys(itemRanges).forEach(iCode => {
+          let d = itemRanges[iCode];
+          if (d.maxWk === -1) return; 
+          if (refYear === maxYear) { resolvedItems[iCode] = d.lastRng; } 
+          else {
+              let best = ''; let max = -1;
+              Object.entries(d.counts).forEach(([rg, c]) => { if (c > max) { max = c; best = rg; } });
+              resolvedItems[iCode] = best;
+          }
+          itemRangeMap[iCode] = resolvedItems[iCode]; 
+      });
+
+      modelRangeMap = {};
+      let modCounts = {};
+      Object.keys(itemRanges).forEach(iCode => {
+          let mCode = itemRanges[iCode].mCode;
+          let rng = resolvedItems[iCode];
+          let isWorthy = (refYear === maxYear) ? activeForecastModels.has(mCode) : (itemRanges[iCode].activeWeeksSet.size >= 5);
+          if (rng && isWorthy) {
+              if (!modCounts[mCode]) modCounts[mCode] = {};
+              modCounts[mCode][rng] = (modCounts[mCode][rng] || 0) + 1;
+          }
+      });
+
+      Object.keys(modCounts).forEach(mCode => {
+          let counts = modCounts[mCode];
+          let keys = Object.keys(counts);
+          if (keys.length === 1) {
+              let rngStr = keys[0];
+              if (!String(rngStr).toLowerCase().startsWith('r ')) rngStr = 'R ' + String(rngStr).replace(/\D/g, '');
+              modelRangeMap[mCode] = rngStr;
+          } else {
+              let arr = keys.map(k => ({ rng: String(k).replace(/\D/g, ''), cnt: counts[k] })).sort((a,b) => b.cnt - a.cnt);
+              modelRangeMap[mCode] = arr.map(x => `R ${x.rng} (${x.cnt})`).join(' : ');
+          }
+      });
+
+      allData.forEach(r => {
+          let mCode = (r.mod && String(r.mod).includes('::')) ? String(r.mod).split('::')[1].trim().toUpperCase() : String(r.mod || '').trim().toUpperCase();
+          r.trueRng = modelRangeMap[mCode] || '';
+      });
+
+      buildCustomFilterUI();
+      triggerYTDRebuild(); 
+    }
+
+    function getBlendedStoreCountForWeek(targetYear, w, famCode, rangeStr) {
+        let season = ''; let seasonYear = targetYear;
+        if (w >= 1 && w <= 4) { season = 'FW'; seasonYear = targetYear - 1; }
+        else if (w >= 5 && w <= 35) { season = 'SS'; }
+        else { season = 'FW'; }
+        
+        let seasonKey = season + seasonYear;
+        if (!globalStoreCounts[seasonKey] && globalStoreCounts['SS' + seasonYear]) seasonKey = 'SS' + seasonYear;
+
+        let rawRngNum = String(rangeStr).replace(/\D/g, ''); 
+        if (!rawRngNum) rawRngNum = '4'; 
+
+        if (globalStoreCounts[seasonKey] && globalStoreCounts[seasonKey][famCode]) {
+            return globalStoreCounts[seasonKey][famCode][rawRngNum] || 0;
+        }
+        return 0;
+    }
+
+    function triggerYTDRebuild() {
+      const startWk = parseInt(document.getElementById('f-start').value) || 1;
+      const endWk = parseInt(document.getElementById('f-end').value) || 53;
+      const minPriceInput = parseFloat(document.getElementById('f-min-price').value);
+      const maxPriceInput = parseFloat(document.getElementById('f-max-price').value);
+      const hasPriceFilter = !isNaN(minPriceInput) || !isNaN(maxPriceInput);
+      const minPrice = isNaN(minPriceInput) ? 0 : minPriceInput;
+      const maxPrice = isNaN(maxPriceInput) ? Infinity : maxPriceInput;
+
+      let validModels = new Set();
+      if (hasPriceFilter) {
+          let modelAggr = {};
+          allData.forEach(r => {
+             let mCode = (r.mod && String(r.mod).includes('::')) ? String(r.mod).split('::')[1].trim().toUpperCase() : String(r.mod || '').trim().toUpperCase();
+             if(!modelAggr[mCode]) modelAggr[mCode] = {v:0, q:0};
+             for(let w=1; w<=53; w++) {
+                 if (r.w[`${w}.${maxYear}`]) { 
+                     modelAggr[mCode].v += r.w[`${w}.${maxYear}`].v || 0; 
+                     modelAggr[mCode].q += r.w[`${w}.${maxYear}`].q || 0; 
+                 }
+             }
+          });
+          Object.keys(modelAggr).forEach(mCode => {
+              let asp = modelAggr[mCode].q > 0 ? (modelAggr[mCode].v / modelAggr[mCode].q) : 0;
+              if (asp >= minPrice && asp <= maxPrice) validModels.add(mCode);
+          });
+      }
+
+      cachedYTD = [];
+      itemYTD = {};  
+      const createEmptyAgg = () => ({v:0, q:0, m:0, minWk:99});
+      modelMinWkMap = {}; 
+
+      allData.forEach(r => {
+          let mCode = (r.mod && String(r.mod).includes('::')) ? String(r.mod).split('::')[1].trim().toUpperCase() : String(r.mod || '').trim().toUpperCase();
+          if (hasPriceFilter && !validModels.has(mCode)) return; 
+
+          let iCode = (r.itm && String(r.itm).includes('::')) ? String(r.itm).split('::')[1].trim().toUpperCase() : String(r.itm || '').trim().toUpperCase();
+          if(!iCode) iCode = mCode || 'UNK';
+          
+          let rCh = String(r.ch).trim().toUpperCase();
+          let famCode = (r.fam && String(r.fam).includes('::')) ? String(r.fam).split('::')[1].trim().toUpperCase() : String(r.fam || '').trim().toUpperCase();
+          
+          if (!itemYTD[iCode]) itemYTD[iCode] = { famCode: famCode, mCode: mCode, chans: {} };
+          if (!itemYTD[iCode].chans['OVERALL']) itemYTD[iCode].chans['OVERALL'] = { y:{}, y1:{}, y2:{}, y3:{} };
+          if (rCh !== 'FORECAST_DUMMY' && !itemYTD[iCode].chans[rCh]) itemYTD[iCode].chans[rCh] = { y:{}, y1:{}, y2:{}, y3:{} };
+          
+          if (!modelMinWkMap[mCode]) modelMinWkMap[mCode] = { y:99, y1:99, y2:99, y3:99 };
+          
+          let rowAgg = { y: createEmptyAgg(), y1: createEmptyAgg(), y2: createEmptyAgg(), y3: createEmptyAgg() };
+          
+          for(let w = 1; w <= 53; w++) {
+              ['y', 'y1', 'y2', 'y3'].forEach((yKey, idxKey) => {
+                  let yr = maxYear - idxKey;
+                  let wkStr = `${w}.${yr}`;
+                  
+                  let actualQ = r.w[wkStr] ? (r.w[wkStr].q || 0) : 0;
+                  let actualV = r.w[wkStr] ? (r.w[wkStr].v || 0) : 0;
+                  let actualM = r.w[wkStr] ? (r.w[wkStr].m || 0) : 0;
+
+                  let finalQ = actualQ, finalV = actualV, finalM = actualM;
+
+                  if(finalQ > 0) {
+                      rowAgg[yKey].minWk = Math.min(rowAgg[yKey].minWk, w);
+                      modelMinWkMap[mCode][yKey] = Math.min(modelMinWkMap[mCode][yKey], w); 
+                  }
+                  
+                  if (finalV !== 0 || finalQ > 0) {
+                      let currentRngNum = parseInt(String(r.rng || '').replace(/\D/g, '')) || 4;
+                      if (!itemYTD[iCode].chans['OVERALL'][yKey][w]) {
+                          itemYTD[iCode].chans['OVERALL'][yKey][w] = {v:0, q:0, m:0, rng: currentRngNum};
+                      } else {
+                          itemYTD[iCode].chans['OVERALL'][yKey][w].rng = Math.min(itemYTD[iCode].chans['OVERALL'][yKey][w].rng, currentRngNum);
+                      }
+                      itemYTD[iCode].chans['OVERALL'][yKey][w].v += finalV;
+                      itemYTD[iCode].chans['OVERALL'][yKey][w].q += finalQ;
+                      itemYTD[iCode].chans['OVERALL'][yKey][w].m += finalM;
+
+                      if (rCh !== 'FORECAST_DUMMY') {
+                          if (!itemYTD[iCode].chans[rCh][yKey][w]) itemYTD[iCode].chans[rCh][yKey][w] = {v:0, q:0, m:0};
+                          itemYTD[iCode].chans[rCh][yKey][w].v += finalV;
+                          itemYTD[iCode].chans[rCh][yKey][w].q += finalQ;
+                          itemYTD[iCode].chans[rCh][yKey][w].m += finalM;
+                      }
+                  }
+                  
+                  if (w >= startWk && w <= endWk) {
+                      rowAgg[yKey].v += finalV; 
+                      rowAgg[yKey].q += finalQ; 
+                      rowAgg[yKey].m += finalM; 
+                  }
+              });
+          }
+          r.preAgg = rowAgg; 
+          cachedYTD.push(r);
+      });
+
+      globalItemPWPS = {};
+      globalItemShortage = {};
+
+      Object.keys(itemYTD).forEach(iCode => {
+          globalItemPWPS[iCode] = {};
+          globalItemShortage[iCode] = {};
+          
+          let itmData = itemYTD[iCode];
+          let overallCh = itmData.chans['OVERALL'];
+          let activeModelWkMap = modelMinWkMap[itmData.mCode] || {y:99, y1:99, y2:99, y3:99}; 
+          
+          ['y', 'y1', 'y2', 'y3'].forEach((yKey, idx) => {
+              let yr = maxYear - idx;
+              let implant = activeModelWkMap[yKey] === 99 ? startWk : activeModelWkMap[yKey];
+              let aStart = Math.max(startWk, implant);
+
+              let sum = 0;
+              let validWks = 0;
+
+              for (let w = aStart; w <= endWk; w++) {
+                  let wkStr = `${w}.${yr}`;
+                  let sVal = globalShortageMap[iCode] && globalShortageMap[iCode][wkStr] !== undefined ? globalShortageMap[iCode][wkStr] :
+                             (globalShortageMap[itmData.mCode] && globalShortageMap[itmData.mCode][wkStr] !== undefined ? globalShortageMap[itmData.mCode][wkStr] : undefined);
+                  
+                  if (sVal !== undefined) {
+                      sum += sVal;
+                      validWks += 1;
+                  }
+              }
+              if (validWks > 0) {
+                  globalItemShortage[iCode][yKey] = sum / validWks;
+              }
+          });
+
+          Object.keys(itmData.chans).forEach(ch => {
+              globalItemPWPS[iCode][ch] = {};
+              ['y', 'y1', 'y2', 'y3'].forEach((yKey, idx) => {
+                  let yr = maxYear - idx;
+                  let overallWkMap = overallCh[yKey];
+                  let chWkMap = itmData.chans[ch][yKey];
+                  
+                  let activeStart = activeModelWkMap[yKey] === 99 ? startWk : activeModelWkMap[yKey];
+                  let activeWeeks = endWk - Math.max(startWk, activeStart) + 1;
+                  
+                  let total_v = 0, total_q = 0, total_store_weeks = 0;
+                  let lastKnownRngNum = 4;
+                  if(itemRangeMap[iCode]) {
+                      lastKnownRngNum = parseInt(String(itemRangeMap[iCode]).replace(/\D/g, '')) || 4;
+                  }
+                  
+                  for (let w = Math.max(startWk, activeStart); w <= endWk; w++) {
+                      if (overallWkMap[w] && overallWkMap[w].rng) lastKnownRngNum = overallWkMap[w].rng;
+                      let wkStores = getBlendedStoreCountForWeek(yr, w, itmData.famCode, lastKnownRngNum);
+                      total_store_weeks += wkStores;
+                      
+                      if (chWkMap[w]) {
+                          total_v += chWkMap[w].v;
+                          total_q += chWkMap[w].q;
+                      }
+                  }
+                  
+                  let avgStores = activeWeeks > 0 ? total_store_weeks / activeWeeks : 0;
+                  let aws_v = activeWeeks > 0 ? total_v / activeWeeks : 0;
+                  let aws_q = activeWeeks > 0 ? total_q / activeWeeks : 0;
+                  
+                  globalItemPWPS[iCode][ch][yKey] = {
+                      pwps_v: avgStores > 0 ? aws_v / avgStores : 0,
+                      pwps_q: avgStores > 0 ? aws_q / avgStores : 0
+                  };
+              });
+          });
+      });
+
+      executeFilterEngine(); 
+    }
+
+    function handleSearchDebounce() {
+        clearTimeout(searchDebounceTimeout);
+        searchDebounceTimeout = setTimeout(executeFilterEngine, 300);
+    }
+
+    function buildCustomFilterUI() {
+      let container = document.getElementById('custom-filters-container');
+      let html = '';
+      filterDefs.forEach(def => {
+        html += `<div class="filter-group">
+            <label>${def.label}</label>
+            <div class="custom-select-btn" id="btn-${def.id}" onclick="togglePanel('${def.id}')">All Selected</div>
+            <div class="custom-select-panel" id="panel-${def.id}">
+              <input type="text" class="custom-search" placeholder="Search..." onkeyup="searchPanel(event, '${def.id}')">
+              <div id="list-${def.id}"></div>
+            </div></div>`;
+      });
+      container.innerHTML = html;
+    }
+
+    function togglePanel(id) {
+      const panel = document.getElementById(`panel-${id}`);
+      const wasActive = panel.classList.contains('active');
+      closeAllPanels();
+      if(!wasActive) { panel.classList.add('active'); activePanelId = id; }
+    }
+
+    function closeAllPanels() {
+      document.querySelectorAll('.custom-select-panel').forEach(p => p.classList.remove('active'));
+      activePanelId = null; 
+    }
+    
+    function searchPanel(e, id) {
+      const term = e.target.value.toLowerCase();
+      const items = document.querySelectorAll(`#list-${id} .checkbox-item`);
+      items.forEach(item => { item.style.display = item.textContent.toLowerCase().includes(term) ? 'flex' : 'none'; });
+    }
+
+    function handleCheck(id, val) {
+      const arr = selectedFilters[id];
+      const idx = arr.indexOf(val);
+      if(idx > -1) arr.splice(idx, 1); else arr.push(val);
+      document.getElementById(`btn-${id}`).textContent = arr.length === 0 ? 'All Selected' : `${arr.length} Selected`;
+      executeFilterEngine();
+    }
+
+    function resetAllFilters() {
+      document.getElementById('global-search').value = '';
+      document.getElementById('f-min-price').value = '';
+      document.getElementById('f-max-price').value = '';
+      for(let key in selectedFilters) selectedFilters[key] = [];
+      filterDefs.forEach(d => document.getElementById(`btn-${d.id}`).textContent = 'All Selected');
+      triggerYTDRebuild(); 
+    }
+
+    function executeFilterEngine() {
+      const term = document.getElementById('global-search').value.toLowerCase();
+      
+      filteredData = cachedYTD.filter(r => {
+        if(term) {
+          let rowString = `${r.rng} ${r.abc} ${r.spt} ${r.dep} ${r.sdep} ${r.nop} ${r.dsm} ${r.fam} ${r.mod} ${r.itm} ${r.typ} ${r.grp}`.toLowerCase();
+          if(!rowString.includes(term)) return false;
+        }
+        for(let key in selectedFilters) {
+          let valToCheck = String((key === 'rng') ? r.trueRng || '' : r[key] || '');
+          if(selectedFilters[key].length > 0 && !selectedFilters[key].includes(valToCheck)) return false;
+        }
+        return true;
+      });
+
+      filterDefs.forEach(def => {
+        if(def.id === activePanelId) return; 
+        let validOptions = new Set(filteredData.map(r => String((def.id === 'rng') ? r.trueRng || '' : r[def.id] || '')).filter(Boolean));
+        let listHtml = '';
+        Array.from(validOptions).sort().forEach(val => {
+          let isChecked = selectedFilters[def.id].includes(val) ? 'checked' : '';
+          let safeVal = String(val).replace(/"/g, '&quot;');
+          let displayVal = String(val).includes('::') ? `${String(val).split('::')[0]} <span style="color:#94a3b8; font-size:0.75rem;">[${String(val).split('::')[1]}]</span>` : val;
+          listHtml += `<label class="checkbox-item"><input type="checkbox" value="${safeVal}" ${isChecked} onchange="handleCheck('${def.id}', this.value)">${displayVal}</label>`;
+        });
+        document.getElementById(`list-${def.id}`).innerHTML = listHtml;
+      });
+      renderTable();
+    }
+
+    function setSort(colId) {
+      if (sortCol === colId) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      else { sortCol = colId; sortDir = 'desc'; }
+      renderTable();
+    }
+
+    function getSortIcon(colId) {
+      if (sortCol !== colId) return '';
+      return sortDir === 'asc' ? ' <span style="color:#38bdf8;">▲</span>' : ' <span style="color:#38bdf8;">▼</span>';
+    }
+
+    window.toggleTreeNode = function(btn, e) {
+      e.stopPropagation();
+      let id = decodeSafeId(btn.getAttribute('data-id'));
+      if (expandedNodes.has(id)) expandedNodes.delete(id);
+      else expandedNodes.add(id);
+      renderTable();
+    }
+
+    function renderTable() {
+      const startWk = parseInt(document.getElementById('f-start').value);
+      const endWk = parseInt(document.getElementById('f-end').value);
+      const groupBy = document.getElementById('ctrl-group').value;
+      
+      const metric = document.getElementById('ctrl-metric').value;
+      const agg = document.getElementById('ctrl-agg').value;
+      const limitMode = document.getElementById('ctrl-limit-mode').value;
+      const limitN = parseInt(document.getElementById('ctrl-limit-n').value) || 10;
+      
+      const thead = document.getElementById('bot-head');
+      const tbody = document.getElementById('bot-body');
+
+      if(filteredData.length === 0) {
+        thead.innerHTML = ''; tbody.innerHTML = `<tr><td class="loading-msg" colspan="17">No data matches these filters.</td></tr>`; 
+        generateInsights([], null, metric, endWk, null);
+        return;
+      }
+
+      function calcValue(dataObj, isMicroLevel) {
+        if(metric === 'm') return dataObj.v === 0 ? 0 : (dataObj.m / dataObj.v) * 100;
+        if(metric === 'p') return isMicroLevel ? dataObj.pwps_q : dataObj.pwps_v; 
+        
+        let raw = metric === 'q' ? dataObj.q : dataObj.v;
+        if (agg === 'avg') {
+            let implant = dataObj.minWk === 99 ? startWk : dataObj.minWk;
+            let den = endWk - Math.max(startWk, implant) + 1;
+            return den <= 0 ? 0 : (raw / den);
+        }
+        return raw;
+      }
+      
+      function getSortValue(dataObj, isMicroLevel) {
+        if(metric === 'm') return dataObj.m; 
+        if(metric === 'p') return isMicroLevel ? dataObj.pwps_q : dataObj.pwps_v;
+        
+        let raw = metric === 'q' ? dataObj.q : dataObj.v;
+        if (agg === 'avg') {
+            let implant = dataObj.minWk === 99 ? startWk : dataObj.minWk;
+            let den = endWk - Math.max(startWk, implant) + 1;
+            return den <= 0 ? 0 : (raw / den);
+        }
+        return raw;
+      }
+
+      const createEmptyAgg = () => ({v:0, q:0, m:0, pwps_v:0, pwps_q:0, minWk:99});
+
+      let grandTotal = { OVERALL: { y: createEmptyAgg(), y1: createEmptyAgg(), y2: createEmptyAgg(), y3: createEmptyAgg() } };
+      let grandTotalItemsSet = new Set();
+      targetChannels.forEach(ch => grandTotal[ch.toUpperCase()] = { y: createEmptyAgg(), y1: createEmptyAgg(), y2: createEmptyAgg(), y3: createEmptyAgg() });
+
+      let flatRowsToRender = [];
+      let totalActiveModels = new Set();
+      
+      let getPathConfig = function(r) {
+          let mCode = (r.mod && String(r.mod).includes('::')) ? String(r.mod).split('::')[1].trim().toUpperCase() : String(r.mod || '').trim().toUpperCase();
+          let iCode = (r.itm && String(r.itm).includes('::')) ? String(r.itm).split('::')[1].trim().toUpperCase() : String(r.itm || '').trim().toUpperCase();
+          if(!iCode) iCode = mCode || 'UNK';
+          
+          let safeSPT = String(r.spt || 'UNASSIGNED'); let safeDEP = String(r.dep || 'UNASSIGNED');
+          let safeSDEP = String(r.sdep || 'UNASSIGNED'); let safeFAM = String(r.fam || 'UNASSIGNED');
+          let safeTYP = String(r.typ || 'UNASSIGNED'); let safeDSM = String(r.dsm || 'UNASSIGNED');
+          let safeMOD = String(r.mod || 'UNASSIGNED'); let safeITM = String(r.itm || 'UNASSIGNED');
+          let safeNOP = String(r.nop || 'UNASSIGNED'); let safeABC = String(r.abc || 'UNASSIGNED');
+          let safeRNG = String(r.trueRng || r.rng || 'UNASSIGNED');
+
+          return {
+              'tree': [{v: safeSPT, t: 'spt'}, {v: safeDEP, t: 'dep'}, {v: safeSDEP, t: 'sdep'}, {v: safeFAM, t: 'fam'}, {v: safeTYP, t: 'typ'}, {v: safeDSM, t: 'dsm'}, {v: safeMOD, t: 'mod'}, {v: safeITM, t: 'itm', code: iCode}],
+              'sdep': [{v: safeSDEP, t: 'sdep'}, {v: safeFAM, t: 'fam'}],
+              'fam':  [{v: safeFAM, t: 'fam'}, {v: safeDSM, t: 'dsm'}],
+              'typ':  [{v: safeTYP, t: 'typ'}, {v: safeDSM, t: 'dsm'}, {v: safeMOD, t: 'mod'}],
+              'dsm':  [{v: safeDSM, t: 'dsm'}, {v: safeMOD, t: 'mod'}],
+              'mod':  [{v: safeMOD, t: 'mod'}, {v: safeITM, t: 'itm', code: iCode}],
+              'spt':  [{v: safeSPT, t: 'spt'}],
+              'dep':  [{v: safeDEP, t: 'dep'}],
+              'nop':  [{v: safeNOP, t: 'nop'}],
+              'abc':  [{v: safeABC, t: 'abc'}],
+              'rng':  [{v: safeRNG, t: 'rng'}]
+          };
+      };
+
+      let tree = { id: 'root', children: {} };
+
+      filteredData.forEach(r => {
+          let mCode = (r.mod && String(r.mod).includes('::')) ? String(r.mod).split('::')[1].trim().toUpperCase() : String(r.mod || '').trim().toUpperCase();
+          let iCode = (r.itm && String(r.itm).includes('::')) ? String(r.itm).split('::')[1].trim().toUpperCase() : String(r.itm || '').trim().toUpperCase();
+          if(!iCode) iCode = mCode || 'UNK';
+          
+          let rCh = String(r.ch).trim().toUpperCase();
+          if (activeForecastModels.has(mCode) && mCode) totalActiveModels.add(mCode);
+
+          let rowAgg = r.preAgg; 
+          
+          let safeGroupBy = String(r[groupBy] || 'UNASSIGNED');
+          let pathData = getPathConfig(r)[groupBy] || [{v: safeGroupBy, t: 'unk'}];
+          let curr = tree;
+          
+          pathData.forEach((step, idx) => {
+              let p = String(step.v || 'UNASSIGNED');
+              let nodeKey = p.replace(/\|/g, ''); 
+              if (!curr.children[nodeKey]) {
+                  let initChans = {};
+                  ['OVERALL', ...targetChannels].forEach(c => {
+                      initChans[String(c).trim().toUpperCase()] = { y: createEmptyAgg(), y1: createEmptyAgg(), y2: createEmptyAgg(), y3: createEmptyAgg() };
+                  });
+                  curr.children[nodeKey] = { id: curr.id + '|' + nodeKey, name: p, level: idx, type: step.t, code: step.code, activeModels: new Set(), itemsSet: new Set(), chans: initChans, children: {} };
+              }
+              curr = curr.children[nodeKey];
+              if(activeForecastModels.has(mCode) && mCode) curr.activeModels.add(mCode);
+              curr.itemsSet.add(iCode); 
+
+              ['OVERALL', rCh].forEach(c => {
+                  let chKey = String(c).trim().toUpperCase();
+                  if (curr.chans[chKey]) {
+                      let tg = curr.chans[chKey];
+                      tg.y.v += rowAgg.y.v; tg.y.q += rowAgg.y.q; tg.y.m += rowAgg.y.m; tg.y.minWk = Math.min(tg.y.minWk, rowAgg.y.minWk); 
+                      tg.y1.v += rowAgg.y1.v; tg.y1.q += rowAgg.y1.q; tg.y1.m += rowAgg.y1.m; tg.y1.minWk = Math.min(tg.y1.minWk, rowAgg.y1.minWk);
+                      tg.y2.v += rowAgg.y2.v; tg.y2.q += rowAgg.y2.q; tg.y2.m += rowAgg.y2.m; tg.y2.minWk = Math.min(tg.y2.minWk, rowAgg.y2.minWk); 
+                      tg.y3.v += rowAgg.y3.v; tg.y3.q += rowAgg.y3.q; tg.y3.m += rowAgg.y3.m; tg.y3.minWk = Math.min(tg.y3.minWk, rowAgg.y3.minWk);
+                  }
+              });
+          });
+
+          grandTotalItemsSet.add(iCode);
+          ['OVERALL', rCh].forEach(c => {
+              let chKey = String(c).trim().toUpperCase();
+              if(grandTotal[chKey]) {
+                  let tg = grandTotal[chKey];
+                  tg.y.v += rowAgg.y.v; tg.y.q += rowAgg.y.q; tg.y.m += rowAgg.y.m; tg.y.minWk = Math.min(tg.y.minWk, rowAgg.y.minWk);
+                  tg.y1.v += rowAgg.y1.v; tg.y1.q += rowAgg.y1.q; tg.y1.m += rowAgg.y1.m; tg.y1.minWk = Math.min(tg.y1.minWk, rowAgg.y1.minWk); 
+                  tg.y2.v += rowAgg.y2.v; tg.y2.q += rowAgg.y2.q; tg.y2.m += rowAgg.y2.m; tg.y2.minWk = Math.min(tg.y2.minWk, rowAgg.y2.minWk); 
+                  tg.y3.v += rowAgg.y3.v; tg.y3.q += rowAgg.y3.q; tg.y3.m += rowAgg.y3.m; tg.y3.minWk = Math.min(tg.y3.minWk, rowAgg.y3.minWk); 
+              }
+          });
+      });
+
+      function applyMicroMetrics(nodeMap, itemsSet, nodeObj) {
+          let shtg = { y: {sum:0, cnt:0}, y1: {sum:0, cnt:0}, y2: {sum:0, cnt:0}, y3: {sum:0, cnt:0} };
+
+          itemsSet.forEach(ic => {
+              ['y', 'y1', 'y2', 'y3'].forEach(yKey => {
+                  if (globalItemShortage[ic] !== undefined && globalItemShortage[ic][yKey] !== undefined) {
+                      shtg[yKey].sum += globalItemShortage[ic][yKey];
+                      shtg[yKey].cnt += 1;
+                  }
+              });
+          });
+
+          if(nodeObj) {
+              nodeObj.shtgAvg = {
+                  y: shtg.y.cnt > 0 ? shtg.y.sum / shtg.y.cnt : 0,
+                  y1: shtg.y1.cnt > 0 ? shtg.y1.sum / shtg.y1.cnt : 0,
+                  y2: shtg.y2.cnt > 0 ? shtg.y2.sum / shtg.y2.cnt : 0,
+                  y3: shtg.y3.cnt > 0 ? shtg.y3.sum / shtg.y3.cnt : 0
+              };
+          }
+
+          ['OVERALL', ...targetChannels].forEach(c => {
+              let chKey = String(c).trim().toUpperCase(); 
+              if (nodeMap[chKey]) {
+                  ['y', 'y1', 'y2', 'y3'].forEach(yKey => {
+                      nodeMap[chKey][yKey].pwps_v = 0;
+                      nodeMap[chKey][yKey].pwps_q = 0;
+                      itemsSet.forEach(ic => {
+                          if (globalItemPWPS[ic] && globalItemPWPS[ic][chKey] && globalItemPWPS[ic][chKey][yKey]) {
+                              nodeMap[chKey][yKey].pwps_v += globalItemPWPS[ic][chKey][yKey].pwps_v;
+                              nodeMap[chKey][yKey].pwps_q += globalItemPWPS[ic][chKey][yKey].pwps_q;
+                          }
+                      });
+                  });
+              }
+          });
+      }
+      
+      applyMicroMetrics(grandTotal, grandTotalItemsSet, grandTotal);
+
+      function flattenNode(node, list, parentVal) {
+          let children = Object.values(node.children);
+          if (children.length === 0) return;
+          
+          children.forEach(child => applyMicroMetrics(child.chans, child.itemsSet, child));
+
+          children.sort((a, b) => {
+             let aMicro = (a.type === 'mod' || a.type === 'itm');
+             let bMicro = (b.type === 'mod' || b.type === 'itm');
+             
+             if (sortCol === 'NAME') { 
+                 let aName = String(a.name || '');
+                 let bName = String(b.name || '');
+                 return sortDir === 'asc' ? aName.localeCompare(bName) : bName.localeCompare(aName); 
+             }
+             let parts = sortCol.split('_'); let ch = parts[0], col = parts[1];
+             let gA = a.chans[ch] || {y:createEmptyAgg(), y1:createEmptyAgg(), y2:createEmptyAgg(), y3:createEmptyAgg()};
+             let gB = b.chans[ch] || {y:createEmptyAgg(), y1:createEmptyAgg(), y2:createEmptyAgg(), y3:createEmptyAgg()};
+             
+             let valA = 0, valB = 0;
+             if(col === 'Y') { valA = getSortValue(gA.y, aMicro); valB = getSortValue(gB.y, bMicro); }
+             else if(col === 'Y1') { valA = getSortValue(gA.y1, aMicro); valB = getSortValue(gB.y1, bMicro); }
+             else if(col === 'Y2') { valA = getSortValue(gA.y2, aMicro); valB = getSortValue(gB.y2, bMicro); }
+             
+             if (valA === valB) return 0;
+             return sortDir === 'asc' ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1);
+          });
+
+          if (limitMode !== 'all') { children = children.slice(0, limitN); }
+
+          children.forEach(child => {
+             child.isMicroLevel = (child.type === 'mod' || child.type === 'itm');
+             if (metric === 'm') {
+                 let childM = child.chans['OVERALL'].y.m;
+                 child.pctCont = (parentVal && parentVal !== 0) ? ((childM / parentVal) * 100).toFixed(1) + '%' : "0.0%";
+             } else if (metric !== 'p') {
+                 let childVal = calcValue(child.chans['OVERALL'].y, child.isMicroLevel);
+                 child.pctCont = (parentVal && parentVal !== 0) ? ((childVal / parentVal) * 100).toFixed(1) + '%' : "0.0%";
+             } else { child.pctCont = ``; }
+
+             list.push(child);
+             if (expandedNodes.has(child.id)) {
+                let passVal = metric === 'm' ? child.chans['OVERALL'].y.m : calcValue(child.chans['OVERALL'].y, child.isMicroLevel);
+                flattenNode(child, list, passVal);
+             }
+          });
+      }
+
+      let rootVal = metric === 'm' ? grandTotal['OVERALL'].y.m : calcValue(grandTotal['OVERALL'].y, false);
+      flattenNode(tree, flatRowsToRender, rootVal);
+      generateInsights(flatRowsToRender, grandTotal['OVERALL'], metric, endWk, calcValue);
+
+      let groupLabel = document.getElementById('ctrl-group').options[document.getElementById('ctrl-group').selectedIndex].text;
+      let renderChans = ['OVERALL', ...targetChannels];
+      
+      let head1 = `<tr><th rowspan="2" class="sortable-header" onclick="setSort('NAME')">${groupLabel}${getSortIcon('NAME')}</th>`;
+      let head2 = `<tr>`;
+      renderChans.forEach(ch => {
+        let chKey = String(ch).trim().toUpperCase();
+        head1 += `<th colspan="3" class="col-divider">${chKey === 'OVERALL' ? 'OVERALL PORTFOLIO' : ch}</th>`;
+        head2 += `<th class="sortable-header" onclick="setSort('${chKey}_Y')">${maxYear}${getSortIcon(`${chKey}_Y`)}</th>
+                  <th class="sortable-header" onclick="setSort('${chKey}_Y1')">${maxYear-1}${getSortIcon(`${chKey}_Y1`)}</th>
+                  <th class="col-divider sortable-header" onclick="setSort('${chKey}_Y2')">${maxYear-2}${getSortIcon(`${chKey}_Y2`)}</th>`;
+      });
+      head1 += `</tr>`; head2 += `</tr>`;
+      thead.innerHTML = head1 + head2;
+
+      function formatValue(num, isMicro) {
+        if (metric === 'm') return num.toFixed(1) + '%';
+        if (metric === 'p') {
+            if (isMicro) return Number(num.toFixed(2)).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2}) + ' u';
+            return '₹' + Math.round(num).toLocaleString();
+        }
+        if (metric === 'q') return Math.round(num).toLocaleString() + ' u';
+        return '₹' + Math.round(num).toLocaleString();
+      }
+      
+      function renderYoYHTML(curr, prev, isPwpsStyle = false, isY2 = false) {
+        if(prev === 0) {
+            if (isY2 && isPwpsStyle) return ''; 
+            return curr > 0 ? `<span style="color:#059669;">NEW</span>` : '';
+        }
+        let yoy = (((curr - prev) / prev) * 100);
+        let clr = yoy >= 0 ? '#059669' : '#dc2626';
+        if (isPwpsStyle) return `<span style="color:${clr};">(${yoy >= 0 ? '+' : ''}${yoy.toFixed(1)}%)</span>`;
+        return `<span style="color:${clr};">${yoy >= 0 ? '+' : ''}${yoy.toFixed(1)}%</span>`;
+      }
+      
+      function formatName(rawName) {
+        let strName = String(rawName || '');
+        if (!strName.includes('::')) return `<b>${strName}</b>`;
+        let parts = strName.split('::');
+        return `<b>${parts[0]}</b> <span style="color:#64748b; font-size:0.75rem;">[${parts[1]}]</span>`;
+      }
+
+      function getShtgColor(shtgPct) {
+        let val = +(shtgPct * 100).toFixed(2);
+        if (val <= 2.0) return '#059669'; 
+        if (val <= 4.0) return '#d97706'; 
+        return '#dc2626'; 
+      }
+
+      function buildRowHtml(dispName, dataMap, isMicro, isTotalRow = false, nodeShtgAvg = null) {
+        let html = `<tr ${isTotalRow ? 'class="row-total"' : ''}><td><div style="display:flex; width:100%; box-sizing:border-box; align-items:center;">${dispName}</div></td>`;
+        
+        let getDenom = (minWk) => {
+           let implant = minWk === 99 ? startWk : minWk;
+           let den = endWk - Math.max(startWk, implant) + 1;
+           return den <= 0 ? 0 : den;
+        };
+
+        renderChans.forEach(ch => {
+          let matchCh = String(ch).trim().toUpperCase();
+          let yObj = dataMap[matchCh] ? dataMap[matchCh].y : createEmptyAgg();
+          let y1Obj = dataMap[matchCh] ? dataMap[matchCh].y1 : createEmptyAgg();
+          let y2Obj = dataMap[matchCh] ? dataMap[matchCh].y2 : createEmptyAgg();
+          let y3Obj = dataMap[matchCh] ? dataMap[matchCh].y3 : createEmptyAgg();
+
+          let valY = calcValue(yObj, isMicro), valY1 = calcValue(y1Obj, isMicro), valY2 = calcValue(y2Obj, isMicro);
+          
+          let yoyValY = valY, yoyValY1 = valY1, yoyValY2 = valY2, yoyValY3 = calcValue(y3Obj, isMicro);
+          let subTextY = '', subTextY1 = '', subTextY2 = '';
+
+          if (metric === 'm') {
+              let denY = getDenom(yObj.minWk);
+              let denY1 = getDenom(y1Obj.minWk);
+              let denY2 = getDenom(y2Obj.minWk);
+              let denY3 = getDenom(y3Obj.minWk);
+              
+              yoyValY = agg === 'avg' ? (denY > 0 ? yObj.m / denY : 0) : yObj.m;
+              yoyValY1 = agg === 'avg' ? (denY1 > 0 ? y1Obj.m / denY1 : 0) : y1Obj.m;
+              yoyValY2 = agg === 'avg' ? (denY2 > 0 ? y2Obj.m / denY2 : 0) : y2Obj.m;
+              yoyValY3 = agg === 'avg' ? (denY3 > 0 ? y3Obj.m / denY3 : 0) : y3Obj.m;
+
+              subTextY = yoyValY !== 0 ? Math.round(yoyValY).toLocaleString() : '-';
+              subTextY1 = yoyValY1 !== 0 ? Math.round(yoyValY1).toLocaleString() : '-';
+              subTextY2 = yoyValY2 !== 0 ? Math.round(yoyValY2).toLocaleString() : '-';
+          } else {
+              subTextY = yObj.q > 0 ? Math.round(yObj.v / yObj.q).toLocaleString() : '-';
+              subTextY1 = y1Obj.q > 0 ? Math.round(y1Obj.v / y1Obj.q).toLocaleString() : '-';
+              subTextY2 = y2Obj.q > 0 ? Math.round(y2Obj.v / y2Obj.q).toLocaleString() : '-';
+          }
+
+          let avgShtgY = nodeShtgAvg ? nodeShtgAvg.y : 0;
+          let avgShtgY1 = nodeShtgAvg ? nodeShtgAvg.y1 : 0;
+          let avgShtgY2 = nodeShtgAvg ? nodeShtgAvg.y2 : 0;
+
+          let revY = (avgShtgY < 1 && avgShtgY >= 0) ? valY / (1 - avgShtgY) : valY;
+          let revY1 = (avgShtgY1 < 1 && avgShtgY1 >= 0) ? valY1 / (1 - avgShtgY1) : valY1;
+          let revY2 = (avgShtgY2 < 1 && avgShtgY2 >= 0) ? valY2 / (1 - avgShtgY2) : valY2;
+
+          function renderCell(val, yoyHtml, subHtml, shtgPct, revVal) {
+             if (val === 0 && yoyHtml === '') return '-';
+
+             let sText = shtgPct > 0 ? `S: ${(shtgPct * 100).toFixed(1)}%` : '';
+             let sColor = shtgPct > 0 ? getShtgColor(shtgPct) : '';
+             let sHtml = shtgPct > 0 ? `<span style="color:${sColor}; font-weight:800;">${sText}</span>` : `<span></span>`;
+
+             if (metric === 'p') {
+                 let rText = shtgPct > 0 ? `[${formatValue(revVal, isMicro)}]` : '';
+                 return `<div style="display:flex; flex-direction:column; justify-content:space-between; min-height:36px; height:100%; padding:2px;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                        <span style="font-size:0.75rem; font-weight:700; color:#94a3b8;">${rText}</span>
+                        <span style="text-align:right; font-size:0.85rem;">${formatValue(val, isMicro)}</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:0.7rem; font-weight:700; margin-top:4px; align-items: flex-end;">
+                        ${sHtml}
+                        <span style="text-align:right;">${yoyHtml}</span>
+                    </div></div>`;
+             } else {
+                 let subStr = (subHtml !== '' && subHtml !== '-') ? `[₹${subHtml}]` : '';
+                 return `<div style="display:flex; flex-direction:column; justify-content:space-between; min-height:36px; height:100%; padding:2px;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                        <span style="font-size:0.75rem; font-weight:700; color:#64748b;">${subStr}</span>
+                        <span style="text-align:right; font-size:${metric==='m' ? '1rem' : '0.85rem'};">${formatValue(val, isMicro)}</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:0.75rem; font-weight:700; margin-top:4px; align-items: flex-end;">
+                        ${sHtml}
+                        <span style="text-align:right;">${yoyHtml}</span>
+                    </div></div>`;
+             }
+          }
+
+          let cellY = renderCell(valY, renderYoYHTML(yoyValY, yoyValY1, metric === 'p', false), subTextY, avgShtgY, revY);
+          let cellY1 = renderCell(valY1, renderYoYHTML(yoyValY1, yoyValY2, metric === 'p', false), subTextY1, avgShtgY1, revY1);
+          let cellY2 = renderCell(valY2, renderYoYHTML(yoyValY2, yoyValY3, metric === 'p', true), subTextY2, avgShtgY2, revY2); 
+
+          html += `<td>${cellY}</td><td style="background-color:#f8fafc;">${cellY1}</td><td class="col-divider">${cellY2}</td>`;
+        });
+        return html + `</tr>`;
+      }
+
+      let grandTotalBadge = totalActiveModels.size > 0 ? `<span style="margin-left:auto; color:#475569; font-size:0.7rem; font-weight:800; padding-left:10px; flex-shrink:0;">📦 (${totalActiveModels.size})</span>` : '';
+      let finalHtml = buildRowHtml('GRAND TOTAL (Filtered)' + grandTotalBadge, grandTotal, false, true, grandTotal.shtgAvg);
+      
+      flatRowsToRender.forEach(child => {
+         let dispName = "";
+         let rText = "";
+         let safeChildName = String(child.name || '');
+
+         if (child.type === 'mod') {
+            let mCode = safeChildName.includes('::') ? safeChildName.split('::')[1].trim().toUpperCase() : safeChildName.trim().toUpperCase();
+            rText = modelRangeMap[mCode] || "";
+         } else if (child.type === 'itm') {
+            if (itemRangeMap[child.code]) {
+                let safeRange = String(itemRangeMap[child.code]);
+                rText = "R " + safeRange.replace(/\D/g, '');
+            }
+         }
+         let rangeBadge = rText ? `<span class="pct-badge" style="background:#fef3c7; border-color:#fde68a; color:#92400e;">${rText}</span>` : '';
+         
+         let padding = child.level * 20; 
+         let hasActualChildren = Object.keys(child.children).length > 0;
+         let toggleIcon = '';
+         
+         if (hasActualChildren) { 
+             let isExp = expandedNodes.has(child.id);
+             let safeId = encodeSafeId(String(child.id));
+             toggleIcon = `<span class="expand-btn" data-id="${safeId}" onclick="toggleTreeNode(this, event)">${isExp ? '−' : '+'}</span>`;
+         } else { toggleIcon = `<span class="level-dot"></span>`; }
+         
+         let pctBadge = child.pctCont ? `<span class="pct-badge">${child.pctCont}</span>` : '';
+         let rightBadge = (child.type !== 'mod' && child.type !== 'itm' && child.activeModels.size > 0) 
+            ? `<span style="margin-left:auto; color:#94a3b8; font-size:0.65rem; font-weight:700; padding-right:10px;">📦 (${child.activeModels.size})</span>` : '';
+         
+         dispName = `<div style="padding-left:${padding}px; display:flex; align-items:center; width:100%; box-sizing:border-box;">${toggleIcon} <span style="white-space:normal; line-height:1.2;">${formatName(safeChildName)}</span> ${pctBadge} ${rangeBadge} ${rightBadge}</div>`;
+         
+         finalHtml += buildRowHtml(dispName, child.chans, child.isMicroLevel, false, child.shtgAvg);
+      });
+      
+      tbody.innerHTML = finalHtml;
+    }
+
+    function toggleInsights() {
+        const panel = document.getElementById('insights-panel');
+        panel.classList.toggle('active');
+    }
+
+    function generateInsights(visibleRows, grandTotalAgg, metric, endWk, calcValueCallback) {
+        const container = document.getElementById('insights-container');
+        container.innerHTML = '';
+        if (visibleRows.length === 0) return;
+
+        const startWk = parseInt(document.getElementById('f-start').value) || 1;
+        let isMicro = (metric === 'p');
+
+        let performers = { spt:{}, dep:{}, sdep:{}, fam:{}, typ:{} };
+        let modelMarginMap = {};
+        let modelShortageMap = {};
+        let rangeShiftMap = {};
+        let globalVolumeY = 0, globalVolumeY1 = 0, globalVolumeY2 = 0;
+
+        filteredData.forEach(r => {
+            let mCode = (r.mod && String(r.mod).includes('::')) ? String(r.mod).split('::')[1].trim().toUpperCase() : String(r.mod || 'UNK').toUpperCase();
+            let rawMName = (r.mod && String(r.mod).includes('::')) ? String(r.mod).split('::')[0].trim() : String(r.mod || '');
+            let iCode = (r.itm && String(r.itm).includes('::')) ? String(r.itm).split('::')[1].trim().toUpperCase() : String(r.itm || '').trim().toUpperCase();
+            if(!iCode) iCode = mCode;
+
+            let v = r.preAgg.y.v;
+            let q = r.preAgg.y.q;
+            let mValue = r.preAgg.y.m;
+
+            globalVolumeY += r.preAgg.y.q;
+            globalVolumeY1 += r.preAgg.y1.q;
+            globalVolumeY2 += r.preAgg.y2.q;
+
+            ['spt', 'dep', 'sdep', 'fam', 'typ'].forEach(h => {
+                if(r[h]) {
+                    let safeVal = String(r[h]);
+                    performers[h][safeVal] = (performers[h][safeVal] || 0) + v;
+                }
+            });
+
+            modelMarginMap[rawMName] = (modelMarginMap[rawMName] || 0) + mValue;
+            
+            if(q > 0 && !rangeShiftMap[mCode]) {
+                rangeShiftMap[mCode] = { name: rawMName, activeWks: 0, rngStr: String(r.trueRng || r.rng || ''), pwpsVal: 0 };
+            }
+            if(q > 0) rangeShiftMap[mCode].activeWks += 1;
+            
+            let pData = globalItemPWPS[iCode] && globalItemPWPS[iCode]['OVERALL'] && globalItemPWPS[iCode]['OVERALL']['y'] ? globalItemPWPS[iCode]['OVERALL']['y'] : null;
+            if(pData && q > 0) {
+                rangeShiftMap[mCode].pwpsVal += isMicro ? pData.pwps_q : pData.pwps_v;
+            }
+        });
+
+        visibleRows.forEach(child => {
+            if(child.type === 'mod') {
+                let safeName = String(child.name).split('::')[0].trim();
+                let shtgRate = child.shtgAvg ? child.shtgAvg.y : 0;
+                if(shtgRate > 0) modelShortageMap[safeName] = shtgRate;
+            }
+        });
+
+        let getTopEntry = (obj) => {
+            let entries = Object.entries(obj);
+            if(entries.length === 0) return "-";
+            entries.sort((a,b) => b[1] - a[1]);
+            let safeName = String(entries[0][0]);
+            return `${safeName.split('::')[0]} (₹${Math.round(entries[0][1]).toLocaleString()})`;
+        };
+
+        let hierarchyCard = `
+        <div class="insight-card" style="border-left-color: #3b82f6;">
+            <div class="insight-title">🏆 Portfolio Hierarchy Leaders</div>
+            <div class="insight-row-item"><span><b>Sport:</b></span> <span>${getTopEntry(performers.spt)}</span></div>
+            <div class="insight-row-item"><span><b>Dept:</b></span> <span>${getTopEntry(performers.dep)}</span></div>
+            <div class="insight-row-item"><span><b>SubDept:</b></span> <span>${getTopEntry(performers.sdep)}</span></div>
+            <div class="insight-row-item"><span><b>Family:</b></span> <span>${getTopEntry(performers.fam)}</span></div>
+            <div class="insight-row-item"><span><b>Typology:</b></span> <span>${getTopEntry(performers.typ)}</span></div>
+        </div>`;
+
+        let topMargins = Object.entries(modelMarginMap).sort((a,b) => b[1] - a[1]).slice(0, 3);
+        let marginCard = `
+        <div class="insight-card" style="border-left-color: #10b981;">
+            <div class="insight-title">💰 Top Cash Profit Drivers</div>
+            <div class="insight-text">Isolating top drivers by absolute cash volume rather than percentage distortion:</div>
+            <div style="margin-top:8px;">
+               ${topMargins.map((m, i) => `<div class="insight-row-item"><span>${i+1}. ${String(m[0])}</span> <b>₹${Math.round(m[1]).toLocaleString()}</b></div>`).join('')}
+            </div>
+        </div>`;
+
+        let potentialList = [];
+        visibleRows.forEach(r => {
+            if(r.type === 'mod') {
+                let pV = calcValueCallback ? calcValueCallback(r.chans['OVERALL'].y, r.isMicroLevel) : 0;
+                potentialList.push({ name: String(r.name).split('::')[0], val: pV });
+            }
+        });
+        potentialList.sort((a,b) => b.val - a.val);
+        let top5Potential = potentialList.slice(0, 5);
+        let potentialCard = `
+        <div class="insight-card" style="border-left-color: #8b5cf6;">
+            <div class="insight-title">🚀 Top 5 Sales Potentials (PWPS)</div>
+            <div class="insight-text">Active high-velocity configurations sorted by aggregate pipeline potential:</div>
+            <div style="margin-top:8px;">
+               ${top5Potential.map((p, i) => `<div class="insight-row-item"><span>${i+1}. ${p.name}</span> <b>${metric === 'p' ? p.val.toFixed(1)+' u' : '₹'+Math.round(p.val).toLocaleString()}</b></div>`).join('')}
+            </div>
+        </div>`;
+
+        let shortageAlerts = Object.entries(modelShortageMap).sort((a,b) => b[1] - a[1]).slice(0, 3);
+        
+        let shortageCard = `
+        <div class="insight-card" style="border-left-color: #ef4444;">
+            <div class="insight-title">🚨 Supply Scarcity & Leakage Alerts</div>
+            <div class="insight-text">Top critical out-of-stock leakages blocking realized turnover:</div>
+            <div style="margin-top:8px;">
+               ${shortageAlerts.map((s, i) => `<div class="insight-row-item"><span>${i+1}. ${s[0]}</span> <span style="color:#dc2626; font-weight:700;">${(s[1]*100).toFixed(1)}% Scarcity</span></div>`).join('')}
+            </div>
+        </div>`;
+
+        let deviationsList = [];
+        let pStart = Math.max(1, currentISOWeek - 4), pEnd = Math.max(1, currentISOWeek - 1);
+        let fStart = currentISOWeek, fEnd = Math.min(53, currentISOWeek + 3);
+
+        allData.forEach(r => {
+            let mCode = (r.mod && String(r.mod).includes('::')) ? String(r.mod).split('::')[1].trim().toUpperCase() : String(r.mod || '').trim().toUpperCase();
+            let rawMName = (r.mod && String(r.mod).includes('::')) ? String(r.mod).split('::')[0].trim() : String(r.mod || '');
+
+            let pastQty = 0, futQty = 0;
+            for(let w = pStart; w <= pEnd; w++) {
+                if (r.ch !== 'FORECAST_DUMMY') pastQty += (r.w[`${w}.${maxYear}`]?.q || 0);
+            }
+            
+            for(let w = fStart; w <= fEnd; w++) {
+                if(r.ch === 'FORECAST_DUMMY') futQty += (r.w[`${w}.${maxYear}`]?.q || 0);
+            }
+            if(pastQty > 0 || futQty > 0) {
+                deviationsList.push({ name: rawMName, delta: futQty - pastQty, past: pastQty, fut: futQty });
+            }
+        });
+        
+        let uniqueDev = {};
+        deviationsList.forEach(d => { if(!uniqueDev[d.name]) uniqueDev[d.name] = d; else { uniqueDev[d.name].past += d.past; uniqueDev[d.name].fut += d.fut; uniqueDev[d.name].delta = uniqueDev[d.name].fut - uniqueDev[d.name].past; }});
+        let finalDevList = Object.values(uniqueDev).sort((a,b) => Math.abs(b.delta) - Math.abs(a.delta)).slice(0, 3);
+        
+        let velocityCard = `
+        <div class="insight-card" style="border-left-color: #f59e0b;">
+          <div class="insight-title">📈 Next-4-Wks Velocity Deviations</div>
+          <div class="insight-text">Comparing Past 4 Wks Realized Sales vs Upcoming 4 Wks Supply Forecasts:</div>
+          <div style="margin-top:8px;">
+             ${finalDevList.map((d, i) => `<div class="insight-row-item"><span>${i+1}. ${d.name}</span> <b>${d.delta >= 0 ? '+' : ''}${Math.round(d.delta)} u</b> <span style="font-size:0.7rem; color:#94a3b8;">(${Math.round(d.past)}➔${Math.round(d.fut)})</span></div>`).join('')}
+          </div>
+        </div>`;
+
+        let totalWkSpan = endWk - startWk + 1;
+        let densityGateLimit = Math.ceil(totalWkSpan * 0.45); 
+        let recommendations = [];
+
+        Object.keys(rangeShiftMap).forEach(mc => {
+            let meta = rangeShiftMap[mc];
+            if (meta.activeWks >= densityGateLimit && meta.pwpsVal > 0) {
+                let rStr = String(meta.rngStr).toUpperCase();
+                if (rStr.includes('3') && meta.pwpsVal > 50) {
+                    recommendations.push(`Upgrade <b>${meta.name}</b> from Range 3 ➔ 1. Footprint productivity is choked.`);
+                } else if (rStr.includes('1') && meta.pwpsVal < 5) {
+                    recommendations.push(`Scale-down <b>${meta.name}</b> from Range 1 ➔ 3. Shelf space conversion underperforming.`);
+                }
+            }
+        });
+        
+        let prescriptiveCard = `
+        <div class="insight-card" style="border-left-color: #06b6d4;">
+            <div class="insight-title">⚖️ Prescriptive Merchandising Range Shifts</div>
+            <div class="insight-text">Models passing the <b>45% active lifecycle gate</b> (Min ${densityGateLimit} selling weeks) validated for visibility adjustment:</div>
+            <div style="margin-top:6px; font-size:0.8rem; color:#475569; line-height:1.4;">
+               ${recommendations.length > 0 ? recommendations.slice(0,3).map(r => `<div style="margin-bottom:4px;">➔ ${r}</div>`).join('') : 'Distribution footprint matches market velocity profiles cleanly.'}
+            </div>
+        </div>`;
+
+        let trajectoryText = "Stable continuous performance profile detected across historical baselines.";
+        if (globalVolumeY > 0 && globalVolumeY1 > 0 && globalVolumeY2 > 0) {
+            if (globalVolumeY > globalVolumeY1 && globalVolumeY1 > globalVolumeY2) {
+                trajectoryText = `📈 <b>Linear Acceleration Pattern Identified:</b> This portfolio has sustained compound trajectory expansion across the past 3 seasons (Y-2: ${Math.round(globalVolumeY2).toLocaleString()} u ➔ Y-1: ${Math.round(globalVolumeY1).toLocaleString()} u ➔ Current Y: ${Math.round(globalVolumeY).toLocaleString()} u).`;
+            } else if (globalVolumeY < globalVolumeY1 && globalVolumeY1 < globalVolumeY2) {
+                trajectoryText = `📉 <b>Systemic Degradation Pattern Identified:</b> Steady structural trajectory collapse over 3 consecutive seasons. Immediate category review requested.`;
+            } else if (globalVolumeY < (globalVolumeY1 * 0.7) && globalVolumeY1 > 0) {
+                trajectoryText = `⚠️ <b>Window Cliff-Drop Detected:</b> Current year baseline exhibits an abnormal -30% deviation compared to identical multi-year timelines. Check allocation constraints or structural logistics bugs.`;
+            }
+        }
+
+        let trajectoryCard = `
+        <div class="insight-card" style="border-left-color: #ec4899; grid-column: span 2;">
+            <div class="insight-title">🔄 3-Year Parallel Trajectory Analysis</div>
+            <div class="insight-text">${trajectoryText}</div>
+        </div>`;
+
+        container.innerHTML = hierarchyCard + marginCard + potentialCard + shortageCard + velocityCard + prescriptiveCard + trajectoryCard;
+    }
+
+    function promptCalcTraceExport() {
+        let mCode = prompt("Enter Model Code to Trace (e.g. 8784634):");
+        if(!mCode) return;
+        mCode = String(mCode).trim().toUpperCase();
+        
+        let startWk = parseInt(document.getElementById('f-start').value) || 1;
+        let endWk = parseInt(document.getElementById('f-end').value) || 53;
+        
+        let traceData = [];
+        let pushTrace = (c1, c2, c3, c4, c5) => traceData.push([c1, c2, c3, c4, c5]);
+
+        pushTrace("METADATA", "Model Code Trace", mCode, "", "Auditing PWPS Extrapolation & Math");
+        pushTrace("", "", "", "", "");
+        pushTrace("Level / Identifier", "Step Description", "Reason (The Why)", "No. of Stores Considered", "Calculated Value");
+        
+        let modelRows = allData.filter(r => {
+            let mc = (r.mod && String(r.mod).includes('::')) ? String(r.mod).split('::')[1].trim().toUpperCase() : String(r.mod || '').trim().toUpperCase();
+            return mc === mCode;
+        });
+        
+        if(modelRows.length === 0) { alert("Model not found in the current data lake."); return; }
+        
+        let localModelWkMap = {y: 99, y1: 99, y2: 99, y3: 99};
+
+        modelRows.forEach(r => {
+            let iCode = (r.itm && String(r.itm).includes('::')) ? String(r.itm).split('::')[1].trim().toUpperCase() : String(r.itm || '').trim().toUpperCase();
+            if(!iCode) iCode = mCode;
+            let rCh = String(r.ch).trim().toUpperCase();
+            let famCode = (r.fam && String(r.fam).includes('::')) ? String(r.fam).split('::')[1].trim().toUpperCase() : String(r.fam || '').trim().toUpperCase();
+            
+            if (!itemYTD[iCode]) itemYTD[iCode] = { famCode: famCode, chans: {} };
+            if (!itemYTD[iCode].chans['OVERALL']) itemYTD[iCode].chans['OVERALL'] = { y:{}, y1:{}, y2:{}, y3:{} };
+            if (!itemYTD[iCode].chans[rCh]) itemYTD[iCode].chans[rCh] = { y:{}, y1:{}, y2:{}, y3:{} };
+            
+            for(let w = 1; w <= 53; w++) {
+                ['y', 'y1', 'y2', 'y3'].forEach((yKey, idx) => {
+                    let yr = maxYear - idx;
+                    let wkStr = `${w}.${yr}`;
+                    
+                    let actualQ = r.w[wkStr] ? (r.w[wkStr].q || 0) : 0;
+                    let actualV = r.w[wkStr] ? (r.w[wkStr].v || 0) : 0;
+
+                    if (actualQ > 0 || actualV !== 0) {
+                        localModelWkMap[yKey] = Math.min(localModelWkMap[yKey], w); 
+                        
+                        let currentRngNum = parseInt(String(r.rng || '').replace(/\D/g, '')) || 4;
+                        if (!itemYTD[iCode].chans['OVERALL'][yKey][w]) itemYTD[iCode].chans['OVERALL'][yKey][w] = {v:0, q:0, rng: currentRngNum};
+                        else itemYTD[iCode].chans['OVERALL'][yKey][w].rng = Math.min(itemYTD[iCode].chans['OVERALL'][yKey][w].rng, currentRngNum);
+                        
+                        itemYTD[iCode].chans['OVERALL'][yKey][w].v += actualV;
+                        itemYTD[iCode].chans['OVERALL'][yKey][w].q += actualQ;
+                        
+                        if (rCh !== 'FORECAST_DUMMY') {
+                            if (!itemYTD[iCode].chans[rCh][yKey][w]) itemYTD[iCode].chans[rCh][yKey][w] = {v:0, q:0};
+                            itemYTD[iCode].chans[rCh][yKey][w].v += actualV;
+                            itemYTD[iCode].chans[rCh][yKey][w].q += actualQ;
+                        }
+                    }
+                });
+            }
+        });
+        
+        let modelTotalPWPS = { v: 0, q: 0 };
+        
+        Object.keys(itemYTD).forEach(iCode => {
+            let itmData = itemYTD[iCode];
+            let overallCh = itmData.chans['OVERALL'];
+
+            ['OVERALL'].concat(targetChannels).forEach(ch => {
+                let chKey = String(ch).trim().toUpperCase();
+                if(!itmData.chans[chKey]) return;
+                
+                let yKey = 'y'; 
+                let overallWkMap = overallCh[yKey];
+                let chWkMap = itmData.chans[chKey][yKey];
+                
+                let activeStart = localModelWkMap[yKey] === 99 ? startWk : localModelWkMap[yKey];
+                let activeWeeks = endWk - Math.max(startWk, activeStart) + 1;
+                
+                let total_v = 0, total_q = 0, total_store_weeks = 0;
+                let lastKnownRngNum = 4;
+                if(itemRangeMap[iCode]) lastKnownRngNum = parseInt(String(itemRangeMap[iCode]).replace(/\D/g, '')) || 4;
+                
+                for (let w = Math.max(startWk, activeStart); w <= endWk; w++) {
+                    if (overallWkMap[w] && overallWkMap[w].rng) lastKnownRngNum = overallWkMap[w].rng;
+                    let wkStores = (w >= activeStart) ? getBlendedStoreCountForWeek(maxYear, w, itmData.famCode, lastKnownRngNum) : 0;
+                    total_store_weeks += wkStores;
+                    
+                    if (chWkMap[w]) {
+                        total_v += chWkMap[w].v;
+                        total_q += chWkMap[w].q;
+                    }
+                }
+                
+                let avgStores = activeWeeks > 0 ? total_store_weeks / activeWeeks : 0;
+                let aws_v = activeWeeks > 0 ? total_v / activeWeeks : 0;
+                let aws_q = activeWeeks > 0 ? total_q / activeWeeks : 0;
+                
+                let pwps_v = avgStores > 0 ? aws_v / avgStores : 0;
+                let pwps_q = avgStores > 0 ? aws_q / avgStores : 0;
+
+                if(total_q > 0 || total_v > 0) {
+                    pushTrace(`ITEM: ${iCode} | CH: ${chKey}`, `1. Find Model Launch Week`, `A physical product launches when the Model launches. All sizes inherit the Model's first week of sale.`, ``, `Wk ${activeStart}`);
+                    pushTrace(``, `2. Calculate Active Weeks`, `(End Week - Launch Week + 1). Defines the exact lifespan denominator.`, ``, `${activeWeeks} wks`);
+                    pushTrace(``, `3. Sum Total Volume`, `Aggregates realized sales and future extrapolated forecast over the active weeks.`, ``, `Qty: ${Math.round(total_q)} | Val: ${Math.round(total_v)}`);
+                    pushTrace(``, `4. Sum Store-Weeks`, `Aggregates the physical store footprint week-on-week over the active lifespan.`, `${avgStores.toFixed(1)} stores`, `${Math.round(total_store_weeks)} store-weeks`);
+                    pushTrace(``, `5. Final PWPS Math`, `Total Volume / (Total Store-Weeks / Active Weeks). Yields true Sales Potential.`, ``, `Q: ${pwps_q.toFixed(2)} | V: ${Math.round(pwps_v)}`);
+                    pushTrace("", "", "", "", "");
+
+                    if (chKey === 'OVERALL') {
+                        modelTotalPWPS.q += pwps_q;
+                        modelTotalPWPS.v += pwps_v;
+                    }
+                }
+            });
+        });
+        
+        pushTrace(`MODEL: ${mCode}`, `1. PWPS Rollup Aggregation`, `Pure summation of independent item PWPS calculations to prevent clearance-skew and average distortions.`, ``, `Q: ${modelTotalPWPS.q.toFixed(2)} | V: ${Math.round(modelTotalPWPS.v)}`);
+
+        let btn = document.getElementById('btn-calc-export');
+        if(btn) { btn.disabled = true; btn.textContent = '⏳ Exporting...'; }
+        
+        google.script.run.withSuccessHandler(res => {
+            if(btn) { btn.disabled = false; btn.textContent = '🧮 Trace PWPS Math'; }
+            alert(res);
+        }).withFailureHandler(err => {
+            if(btn) { btn.disabled = false; btn.textContent = '🧮 Trace PWPS Math'; }
+            alert("Trace Error: " + err.message);
+        }).exportCalcTraceBackend(mCode, JSON.stringify(traceData));
+    }
+
+    window.openExportModal = function() { document.getElementById('export-modal').style.display = 'flex'; };
+    window.closeExportModal = function() { document.getElementById('export-modal').style.display = 'none'; };
+
+    // --- REBUILT MULTI-HEADER EXPORT ENGINE ---
+    function runExportEngine(forceOverwrite = false) {
+      let btn = document.getElementById('btn-run-export');
+      
+      try {
+          let tabName = document.getElementById('exp-tab-name').value.trim() || 'Custom_Export';
+          let levelSelect = document.getElementById('exp-level');
+          let level = levelSelect.value;
+          let year = document.getElementById('exp-year').value;
+          
+          let depthNodes = document.getElementsByName('exp-depth');
+          let depthMode = 'overall';
+          for(let i=0; i<depthNodes.length; i++) { if(depthNodes[i].checked) depthMode = depthNodes[i].value; }
+          
+          let isWow = (depthMode === 'wow');
+          let isChannelSplit = document.getElementById('exp-channel-split').checked;
+          
+          let metrics = [];
+          if(document.getElementById('exp-m-v').checked) metrics.push({id: 'v', label: 'Sales Value'});
+          if(document.getElementById('exp-m-q').checked) metrics.push({id: 'q', label: 'Sales Quantity'});
+          if(document.getElementById('exp-m-asp').checked) metrics.push({id: 'asp', label: 'ASP (Average Selling Price)'});
+          if(document.getElementById('exp-m-mabs').checked) metrics.push({id: 'm_abs', label: 'Absolute Margin Value'});
+          if(document.getElementById('exp-m-mpct').checked) metrics.push({id: 'm_pct', label: 'Margin %'});
+          if(document.getElementById('exp-m-pwps').checked) metrics.push({id: 'pwps', label: 'Sales Potential (PWPS)'});
+
+          if(metrics.length === 0) { alert("Please select at least one metric."); return; }
+
+          btn.disabled = true; btn.textContent = "⏳ Generating...";
+
+          const hierarchy = [
+            { id: 'spt', cols: ['Sport'] }, { id: 'dep', cols: ['Department'] },
+            { id: 'sdep', cols: ['SubDepartment'] }, { id: 'fam', cols: ['Family Name', 'Family Code'] },
+            { id: 'typ', cols: ['Typology'] }, { id: 'dsm', cols: ['DSM Name', 'DSM Code'] },
+            { id: 'mod', cols: ['Model Name', 'Model Code'] }, { id: 'itm', cols: ['Item Name', 'Item Code'] }
+          ];
+
+          let targetIndex = hierarchy.findIndex(h => h.id === level);
+          if(targetIndex === -1) targetIndex = hierarchy.length - 1;
+          let pathConfig = hierarchy.slice(0, targetIndex + 1);
+          
+          const startWk = parseInt(document.getElementById('f-start').value) || 1;
+          const endWk = parseInt(document.getElementById('f-end').value) || 53;
+          let yKeyMap = { [maxYear]: 'y', [maxYear-1]: 'y1', [maxYear-2]: 'y2', [maxYear-3]: 'y3' };
+          let yKey = yKeyMap[year] || 'y';
+
+          let channelsToExport = isChannelSplit ? ['OVERALL', 'SALE TO CUSTOMERS', 'Sales with Others', 'External Marketplace', 'Internet'] : ['OVERALL'];
+
+          let grouped = {};
+          
+          filteredData.forEach(r => {
+             let keyParts = pathConfig.map(h => String((h.id === 'rng' ? r.trueRng : r[h.id]) || 'UNASSIGNED'));
+             let key = keyParts.join('|');
+             let iCode = (r.itm && String(r.itm).includes('::')) ? String(r.itm).split('::')[1].trim().toUpperCase() : String(r.itm ? r.itm : (r.mod ? r.mod : 'UNK')).trim().toUpperCase();
+
+             if (!grouped[key]) {
+                grouped[key] = { pathData: keyParts, items: new Set(), sortVal: 0 };
+             }
+             grouped[key].items.add(iCode);
+          });
+
+          Object.values(grouped).forEach(g => {
+             g.chans = {};
+             channelsToExport.forEach(ch => {
+                 let chKey = ch.toUpperCase();
+                 g.chans[chKey] = { w: {}, overall: {v:0, q:0, m:0, pwps_v:0, pwps_q:0} };
+                 for(let w = startWk; w <= endWk; w++) {
+                     g.chans[chKey].w[w] = {v:0, q:0, m:0};
+                 }
+             });
+             
+             g.items.forEach(ic => {
+                let iData = itemYTD[ic];
+                if(!iData) return;
+
+                channelsToExport.forEach(ch => {
+                    let chKey = ch.toUpperCase();
+                    if (!iData.chans[chKey] || !iData.chans[chKey][yKey]) return;
+                    let wDataMap = iData.chans[chKey][yKey];
+
+                    for(let w=startWk; w<=endWk; w++) {
+                        let wkData = wDataMap[w];
+                        if(wkData) {
+                            g.chans[chKey].w[w].v += (wkData.v || 0);
+                            g.chans[chKey].w[w].q += (wkData.q || 0);
+                            g.chans[chKey].w[w].m += (wkData.m || 0);
+
+                            g.chans[chKey].overall.v += (wkData.v || 0);
+                            g.chans[chKey].overall.q += (wkData.q || 0);
+                            g.chans[chKey].overall.m += (wkData.m || 0);
+                        }
+                    }
+
+                    if (globalItemPWPS[ic] && globalItemPWPS[ic][chKey] && globalItemPWPS[ic][chKey][yKey]) {
+                        g.chans[chKey].overall.pwps_v += globalItemPWPS[ic][chKey][yKey].pwps_v || 0;
+                        g.chans[chKey].overall.pwps_q += globalItemPWPS[ic][chKey][yKey].pwps_q || 0;
+                    }
+                });
+             });
+             g.sortVal = g.chans['OVERALL'].overall.v;
+          });
+
+          let groupArray = Object.values(grouped);
+          groupArray.sort((a,b) => b.sortVal - a.sortVal);
+          
+          let limitMode = document.getElementById('ctrl-limit-mode').value;
+          let limitN = parseInt(document.getElementById('ctrl-limit-n').value) || 10;
+          if (limitMode !== 'all') {
+              if (limitMode === 'top') groupArray = groupArray.slice(0, limitN);
+              else if (limitMode === 'bot') groupArray = groupArray.slice(-limitN);
+          }
+
+          let exportArray = []; 
+          let headerRow1 = [];
+          let headerRow2 = [];
+          
+          pathConfig.forEach(h => {
+              h.cols.forEach(c => { headerRow1.push(""); headerRow2.push(c); });
+          });
+          
+          channelsToExport.forEach(ch => {
+              let chPrefix = isChannelSplit && ch !== 'OVERALL' ? `[${ch}] ` : (isChannelSplit && ch === 'OVERALL' ? `[OVERALL] ` : '');
+              if (depthMode === 'overall') {
+                 metrics.forEach(m => {
+                    if (m.id === 'pwps') {
+                        headerRow1.push(`${chPrefix}Sales Potential (PWPS)`, "", "");
+                        headerRow2.push('PWPS Realized', 'Shortage %', 'PWPS Revised');
+                    } else {
+                        headerRow1.push(`${chPrefix}${m.label}`);
+                        headerRow2.push(`Wk ${startWk}-${endWk}`);
+                    }
+                 });
+              } else { 
+                 metrics.forEach(m => {
+                     if (m.id === 'pwps') {
+                         headerRow1.push(`${chPrefix}${m.label}`);
+                         for(let i=0; i < ((endWk - startWk + 1) * 3) - 1; i++) headerRow1.push("");
+                         
+                         for(let w = startWk; w <= endWk; w++) {
+                             headerRow2.push(`Wk ${w} Realized`, `Wk ${w} Shortage %`, `Wk ${w} Revised`);
+                         }
+                     } else {
+                         headerRow1.push(`${chPrefix}${m.label}`);
+                         for(let i=0; i < (endWk - startWk + 1) - 1; i++) headerRow1.push("");
+                         
+                         for(let w = startWk; w <= endWk; w++) headerRow2.push(`Wk ${w}`);
+                     }
+                 });
+              }
+          });
+          exportArray.push(headerRow1);
+          exportArray.push(headerRow2);
+
+          groupArray.forEach(g => {
+             let rowData = [];
+             g.pathData.forEach((val, idx) => {
+                let h = pathConfig[idx];
+                if (h.cols.length === 2) {
+                   let name = String(val), code = '';
+                   if (name.includes('::')) { let parts = name.split('::'); name = parts[0].trim(); code = parts[1].trim(); }
+                   rowData.push(name, code);
+                } else { rowData.push(String(val)); }
+             });
+
+             let shtgSum = 0, shtgCnt = 0;
+             g.items.forEach(ic => {
+                 if (globalItemShortage[ic] !== undefined && globalItemShortage[ic][yKey] !== undefined) {
+                     shtgSum += globalItemShortage[ic][yKey];
+                     shtgCnt += 1;
+                 }
+             });
+             let nodeShtgAvg = shtgCnt > 0 ? shtgSum / shtgCnt : 0;
+
+             channelsToExport.forEach(ch => {
+                let chData = g.chans[ch.toUpperCase()];
+
+                if (depthMode === 'overall') {
+                   metrics.forEach(m => {
+                       let v = chData.overall.v, q = chData.overall.q, mVal = chData.overall.m;
+                       if(m.id === 'v') rowData.push(Math.round(v));
+                       if(m.id === 'q') rowData.push(Math.round(q));
+                       if(m.id === 'asp') rowData.push(q > 0 ? Math.round(v/q) : 0);
+                       if(m.id === 'm_abs') rowData.push(Math.round(mVal));
+                       if(m.id === 'm_pct') rowData.push(v > 0 ? ((mVal/v)*100).toFixed(2) + '%' : '0%');
+                       if(m.id === 'pwps') {
+                           let valPWPS = (level === 'mod' || level === 'itm') ? chData.overall.pwps_q : chData.overall.pwps_v;
+                           let revPWPS = (nodeShtgAvg < 1 && nodeShtgAvg >= 0) ? valPWPS / (1 - nodeShtgAvg) : valPWPS;
+                           rowData.push(valPWPS.toFixed(2));
+                           rowData.push((nodeShtgAvg * 100).toFixed(1) + '%');
+                           rowData.push(revPWPS.toFixed(2));
+                       }
+                   });
+                } else {
+                   metrics.forEach(m => {
+                       if(m.id === 'pwps') {
+                           for (let w = startWk; w <= endWk; w++) {
+                               let wkShtgSum = 0, wkShtgCnt = 0;
+                               let total_stores = 0;
+                               
+                               g.items.forEach(ic => {
+                                   let wkStr = `${w}.${year}`;
+                                   let iData = itemYTD[ic];
+                                   if(iData) {
+                                      let mCode = iData.mCode;
+                                      let sVal = globalShortageMap[ic] && globalShortageMap[ic][wkStr] !== undefined ? globalShortageMap[ic][wkStr] : 
+                                                 (globalShortageMap[mCode] && globalShortageMap[mCode][wkStr] !== undefined ? globalShortageMap[mCode][wkStr] : undefined);
+                                      if(sVal !== undefined) {
+                                          wkShtgSum += sVal;
+                                          wkShtgCnt += 1;
+                                      }
+
+                                      let implant = modelMinWkMap[iData.mCode] ? modelMinWkMap[iData.mCode][yKey] : 99;
+                                      if (w >= implant || w >= startWk) {
+                                          let lastKnownRngNum = 4;
+                                          if(itemRangeMap[ic]) lastKnownRngNum = parseInt(String(itemRangeMap[ic]).replace(/\D/g, '')) || 4;
+                                          if (iData.chans['OVERALL'][yKey] && iData.chans['OVERALL'][yKey][w] && iData.chans['OVERALL'][yKey][w].rng) {
+                                              lastKnownRngNum = iData.chans['OVERALL'][yKey][w].rng;
+                                          }
+                                          total_stores += getBlendedStoreCountForWeek(year, w, iData.famCode, lastKnownRngNum);
+                                      }
+                                   }
+                               });
+
+                               let wData = chData.w[w];
+                               let vol = (level === 'mod' || level === 'itm') ? wData.q : wData.v;
+                               let valPWPS = total_stores > 0 ? (vol / total_stores) : 0;
+                               
+                               let wkShtgAvg = wkShtgCnt > 0 ? wkShtgSum / wkShtgCnt : 0;
+                               let revPWPS = (wkShtgAvg < 1 && wkShtgAvg >= 0) ? valPWPS / (1 - wkShtgAvg) : valPWPS;
+
+                               rowData.push(valPWPS.toFixed(2));
+                               rowData.push((wkShtgAvg * 100).toFixed(1) + '%');
+                               rowData.push(revPWPS.toFixed(2));
+                           }
+                       } else {
+                           for (let w = startWk; w <= endWk; w++) {
+                               let wData = chData.w[w];
+                               let v = wData.v, q = wData.q, mVal = wData.m;
+                               if(m.id === 'v') rowData.push(Math.round(v));
+                               if(m.id === 'q') rowData.push(Math.round(q));
+                               if(m.id === 'asp') rowData.push(q > 0 ? Math.round(v/q) : 0);
+                               if(m.id === 'm_abs') rowData.push(Math.round(mVal));
+                               if(m.id === 'm_pct') rowData.push(v > 0 ? ((mVal/v)*100).toFixed(2) + '%' : '0%');
+                           }
+                       }
+                   });
+                }
+             });
+             exportArray.push(rowData);
+          });
+
+          google.script.run.withSuccessHandler(res => {
+             if (res === 'EXISTS') {
+                 let confirmOver = confirm(`A tab named '${tabName}' already exists. Overwrite it?`);
+                 if (confirmOver) runExportEngine(true); else { btn.disabled = false; btn.textContent = "🚀 Push to Excel"; }
+             } else {
+                 btn.disabled = false; btn.textContent = "🚀 Push to Excel";
+                 window.closeExportModal(); alert(res);
+             }
+          }).withFailureHandler(err => {
+             btn.disabled = false; btn.textContent = "🚀 Push to Excel"; alert("Server Error: " + err.message);
+          }).executeExport(tabName, JSON.stringify(exportArray), forceOverwrite, {source: 'Model Summary'});
+          
+      } catch(error) {
+          btn.disabled = false; 
+          btn.textContent = "🚀 Push to Excel";
+          alert("Export crashed while processing data: \n\n" + error.message);
+      }
+    }
+  </script>
+</body>
+</html>
